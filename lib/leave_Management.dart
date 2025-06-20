@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'apply_leave.dart';
 import 'leave_history_cancelled.dart';
+import 'employee_dashboard.dart';
+import 'emp_payroll.dart';
+import 'employee_profile.dart';
+import 'employee_directory.dart';
+import 'reports.dart';
+import 'notification.dart';
 
 class LeaveManagement extends StatelessWidget {
   const LeaveManagement({super.key});
@@ -89,14 +95,15 @@ class LeaveManagement extends StatelessWidget {
             trailing: const Icon(Icons.more_vert),
           ),
           const Divider(),
-          _sidebarItem(Icons.dashboard, 'Dashboard', context, pop: true),
-          _sidebarItem(Icons.calendar_today, 'Leave Management', context),
-          _sidebarItem(Icons.payments, 'Payroll Management', context),
-          _sidebarItem(Icons.how_to_reg, 'Attendance system', context),
-          _sidebarItem(Icons.analytics, 'Reports&Analytics', context),
-          _sidebarItem(Icons.people, 'Employee Directory', context),
-          _sidebarItem(Icons.notifications, 'Notifications', context),
-          _sidebarItem(Icons.person, 'Employee profile', context),
+          sidebarItem(context, Icons.dashboard, 'Dashboard', const EmployeeDashboard()),
+sidebarItem(context, Icons.calendar_today, 'Leave Management',  LeaveManagement()),
+sidebarItem(context, Icons.payments, 'Payroll Management',  EmpPayroll()),
+sidebarItem(context, Icons.how_to_reg, 'Attendance system', null),
+sidebarItem(context, Icons.analytics, 'Reports & Analytics', ReportsAnalyticsPage()),
+sidebarItem(context, Icons.people, 'Employee Directory', EmployeeDirectoryApp()),
+sidebarItem(context, Icons.notifications, 'Notifications', NotificationsPage()),
+sidebarItem(context, Icons.person, 'Employee profile', EmployeeProfilePage()),
+
         ],
       ),
     );
@@ -229,15 +236,28 @@ class LeaveManagement extends StatelessWidget {
   }
 
   // Sidebar item widget
-  Widget _sidebarItem(IconData icon, String title, BuildContext context, {bool pop = false}) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      onTap: () {
-        if (pop) {
-          Navigator.pop(context);
-        }
-      },
-    );
-  }
+  Widget sidebarItem(
+  BuildContext context,
+  IconData icon,
+  String title,
+  Widget? page, // Nullable
+) {
+  return ListTile(
+    leading: Icon(icon, color: Colors.black),
+    title: Text(title, style: TextStyle(fontSize: 14)),
+    onTap: () {
+      if (page != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => page),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$title page is under construction')),
+        );
+      }
+    },
+  );
+}
+
 }

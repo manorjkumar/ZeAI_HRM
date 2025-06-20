@@ -4,6 +4,11 @@ import 'leave_management.dart';
 import 'apply_leave.dart';
 import 'todo_planner.dart';
 import 'company_events.dart';
+import 'emp_payroll.dart';
+import 'employee_profile.dart';
+import 'employee_directory.dart';
+import 'reports.dart';
+import 'notification.dart';
 
 class EmployeeDashboard extends StatelessWidget {
   const EmployeeDashboard({super.key});
@@ -38,12 +43,12 @@ class EmployeeDashboard extends StatelessWidget {
                 const Divider(),
                 _sidebarTile(Icons.dashboard, 'Dashboard', context, const EmployeeDashboard()),
                 _sidebarTile(Icons.calendar_month, 'Leave Management', context, const LeaveManagement()),
-                _sidebarTile(Icons.payments, 'Payroll Management', context, null),
+                _sidebarTile(Icons.payments, 'Payroll Management', context, const  EmpPayroll()),
                 _sidebarTile(Icons.how_to_reg, 'Attendance System', context, null),
-                _sidebarTile(Icons.analytics, 'Reports & Analytics', context, null),
-                _sidebarTile(Icons.people, 'Employee Directory', context, null),
-                _sidebarTile(Icons.notifications, 'Notifications', context, null),
-                _sidebarTile(Icons.person, 'Employee Profile', context, null),
+                _sidebarTile(Icons.analytics, 'Reports & Analytics', context, ReportsAnalyticsPage()),
+                _sidebarTile(Icons.people, 'Employee Directory', context, EmployeeDirectoryApp()),
+                _sidebarTile(Icons.notifications, 'Notifications', context,  NotificationsPage()),
+                _sidebarTile(Icons.person, 'Employee Profile', context,  EmployeeProfilePage()),
               ],
             ),
           ),
