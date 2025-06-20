@@ -1,0 +1,30 @@
+name: dashboard_emp
+description: A new Flutter project.
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+  
+dependencies:
+  percent_indicator: ^4.2.2
+  flutter:
+    sdk: flutter
+  table_calendar: ^3.0.9  
+  intl: ^0.18.1
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+
+  assets:
+     - assets/avatar.png
+     - assets/cake.png
+     - assets/logo_zeai.png
+     - assets/logo_z.png
