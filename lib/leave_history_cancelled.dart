@@ -1,169 +1,142 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'leave_management.dart';
-import 'employee_dashboard.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'sidebar.dart';
+import 'user_provider.dart'; // ⬅️ Import your provider class
 
-class LeaveHistoryCancelled extends StatelessWidget {
+class LeaveHistoryCancelled extends StatefulWidget {
   const LeaveHistoryCancelled({super.key});
 
   @override
+  State<LeaveHistoryCancelled> createState() => _LeaveHistoryCancelledState();
+}
+
+class _LeaveHistoryCancelledState extends State<LeaveHistoryCancelled> {
+  Future<List<Map<String, dynamic>>>? _cancelledLeavesFuture;
+
+  static const String baseUrl = 'http://localhost:5000/apply/cancelled';
+
+  @override
+  void initState() {
+    super.initState();
+    // Safe to read Provider in post-frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final employeeId = Provider.of<UserProvider>(context, listen: false).employeeId;
+      if (employeeId != null && employeeId.isNotEmpty) {
+        setState(() {
+          _cancelledLeavesFuture = fetchCancelledLeaves(employeeId);
+        });
+      }
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> fetchCancelledLeaves(String employeeId) async {
+  final response = await http.get(Uri.parse('$baseUrl/$employeeId'));
+
+  if (response.statusCode == 200) {
+    final decoded = json.decode(response.body);
+
+    if (decoded is List) {
+      // backend returned a raw list
+      return decoded.cast<Map<String, dynamic>>();
+    } else if (decoded is Map && decoded['items'] != null) {
+      // backend returned an object with items key
+      return (decoded['items'] as List).cast<Map<String, dynamic>>();
+    } else {
+      throw Exception("Unexpected response format: $decoded");
+    }
+  } else {
+    throw Exception('Failed to load cancelled leaves');
+  }
+}
+
+
+  String formatDate(String? dateStr) {
+  if (dateStr == null || dateStr.isEmpty) return '';
+  try {
+    final parsedDate = DateTime.parse(dateStr).toLocal();
+    return DateFormat('yyyy-M-d').format(parsedDate); // 👈 match other pages
+  } catch (e) {
+    return dateStr;
+  }
+}
+
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F1020),
-      body: Row(
-        children: [
-          _buildSidebar(context),
-          Expanded(
-            child: Column(
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 30),
-                const Text(
-                  'Leave History (Cancelled)',
-                  style: TextStyle(
-                    fontSize: 26,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: DataTable(
-                      columns: const [
-                        DataColumn(label: Text('Leave Type')),
-                        DataColumn(label: Text('From')),
-                        DataColumn(label: Text('To')),
-                        DataColumn(label: Text('Status')),
-                      ],
-                      rows: const [
-                        DataRow(cells: [
-                          DataCell(Text('Sad leave')),
-                          DataCell(Text('25/5/2025')),
-                          DataCell(Text('27/5/2025')),
-                          DataCell(Text('Cancelled')),
-                        ]),
-                        DataRow(cells: [
-                          DataCell(Text('Casual leave')),
-                          DataCell(Text('12/2/2025')),
-                          DataCell(Text('13/2/2025')),
-                          DataCell(Text('Rejected')),
-                        ]),
-                        DataRow(cells: [
-                          DataCell(Text('Sick Leave')),
-                          DataCell(Text('07/12/2024')),
-                          DataCell(Text('8/12/2024')),
-                          DataCell(Text('Approved')),
-                        ]),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    if (_cancelledLeavesFuture == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-  // Sidebar
-  Widget _buildSidebar(BuildContext context) {
-    return Container(
-      width: 220,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topRight: Radius.circular(10),
-          bottomRight: Radius.circular(10),
-        ),
-      ),
-      child: ListView(
-        children: [
-          const SizedBox(height: 40),
-          ListTile(
-            leading: const CircleAvatar(
-              backgroundImage: AssetImage('assets/avatar.png'),
-            ),
-            title: const Text('Anitha', style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: const Text('Employee Tech'),
-            trailing: const Icon(Icons.more_vert),
-          ),
-          const Divider(),
-          _sidebarItem(context, Icons.dashboard, 'Dashboard', const EmployeeDashboard()),
-          _sidebarItem(context, Icons.calendar_today, 'Leave Management', const LeaveManagement()),
-          _sidebarItem(context, Icons.payments, 'Payroll Management', null),
-          _sidebarItem(context, Icons.how_to_reg, 'Attendance system', null),
-          _sidebarItem(context, Icons.analytics, 'Reports & Analytics', null),
-          _sidebarItem(context, Icons.people, 'Employee Directory', null),
-          _sidebarItem(context, Icons.notifications, 'Notifications', null),
-          _sidebarItem(context, Icons.person, 'Employee Profile', null),
-        ],
-      ),
-    );
-  }
-
-  // Sidebar Item Builder
-  Widget _sidebarItem(BuildContext context, IconData icon, String title, Widget? page) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      onTap: () {
-        if (page != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => page),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$title page not implemented')),
-          );
-        }
-      },
-    );
-  }
-
-  // Header
-  Widget _buildHeader() {
-    return Container(
-      height: 80,
-      color: const Color(0xFF0F1020),
-      padding: const EdgeInsets.symmetric(horizontal: 30),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: const [
-              Icon(Icons.chevron_left, color: Colors.white),
-              Icon(Icons.chevron_right, color: Colors.white),
-              SizedBox(width: 30),
-              Image(image: AssetImage('assets/logo_z.png'), height: 30),
-              SizedBox(width: 446),
-              Image(image: AssetImage('assets/logo_zeai.png'), height: 300),
-            ],
-          ),
-          const SizedBox(
-            width: 250,
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search here...',
-                hintStyle: TextStyle(color: Colors.white70),
-                prefixIcon: Icon(Icons.search, color: Colors.white70),
-                filled: true,
-                fillColor: Colors.black26,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(30)),
-                  borderSide: BorderSide.none,
-                ),
+    return Sidebar(
+      title: 'Leave Cancelled History',
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Leave Cancelled History',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 20),
+            Expanded(
+              child: FutureBuilder<List<Map<String, dynamic>>>(
+                future: _cancelledLeavesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text('No cancelled leave history found.'));
+                  } else {
+                    return _buildLeaveTable(snapshot.data!);
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLeaveTable(List<Map<String, dynamic>> leaves) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width),
+        child: DataTable(
+          columnSpacing: 20,
+          headingRowColor: WidgetStateProperty.all(Colors.white),
+          dataRowColor: WidgetStateProperty.all(Colors.white),
+          border: TableBorder.all(width: 1, color: Colors.grey.shade300),
+          columns: const [
+            DataColumn(label: Text('Leave Type', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('From Date', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('To Date', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Reason', style: TextStyle(fontWeight: FontWeight.bold))),
+            DataColumn(label: Text('Status', style: TextStyle(fontWeight: FontWeight.bold))),
+          ],
+          rows: leaves.map((leave) {
+            return DataRow(
+              cells: [
+                DataCell(Text(leave['leaveType'] ?? '')),
+                DataCell(Text(formatDate(leave['fromDate']))),
+                DataCell(Text(formatDate(leave['toDate']))),
+                DataCell(Text(leave['reason'] ?? '')),
+                DataCell(Text(leave['status'] ?? '')),
+              ],
+            );
+          }).toList(),
+        ),
       ),
     );
   }

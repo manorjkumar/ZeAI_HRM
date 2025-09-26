@@ -1,297 +1,361 @@
 import 'package:flutter/material.dart';
-import 'package:percent_indicator/circular_percent_indicator.dart';
-import 'leave_management.dart';
+import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+import 'user_provider.dart';
+import 'sidebar.dart';
 import 'apply_leave.dart';
 import 'todo_planner.dart';
-import 'company_events.dart';
 import 'emp_payroll.dart';
-import 'employee_profile.dart';
-import 'employee_directory.dart';
-import 'reports.dart';
-import 'notification.dart';
+import 'company_events.dart';
+//import 'notification.dart';
+import 'employeenotification.dart';
+import 'attendance_login.dart';
+import 'event_banner_slider.dart';
 
-class EmployeeDashboard extends StatelessWidget {
+class EmployeeDashboard extends StatefulWidget {
   const EmployeeDashboard({super.key});
 
   @override
+  State<EmployeeDashboard> createState() => _EmployeeDashboardState();
+}
+
+class _EmployeeDashboardState extends State<EmployeeDashboard> {
+  String? employeeName;
+  bool _isLoading = true;
+  String? _error;
+
+  int casualUsed = 0;
+  int casualTotal = 0;
+  int sickUsed = 0;
+  int sickTotal = 0;
+  int sadUsed = 0;
+  int sadTotal = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchEmployeeName();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _fetchLeaveBalance(); // refresh when dashboard is revisited
+  }
+
+  /// 🔹 Fetch employee name from backend
+  Future<void> fetchEmployeeName() async {
+    final employeeId = Provider.of<UserProvider>(context, listen: false).employeeId;
+    if (employeeId == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('http://localhost:5000/get-employee-name/$employeeId'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          employeeName = data['employeeName'];
+        });
+      } else {
+        print('❌ Failed to fetch name: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error fetching employee name: $e');
+    }
+  }
+
+  /// 🔹 Fetch leave balances
+  Future<void> _fetchLeaveBalance() async {
+    try {
+      final employeeId = Provider.of<UserProvider>(context, listen: false).employeeId?.trim();
+      if (employeeId == null || employeeId.isEmpty) {
+        setState(() {
+          _error = "Employee ID not found";
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final year = DateTime.now().year;
+      final url = "http://localhost:5000/apply/leave-balance/$employeeId?year=$year";
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          casualUsed = (data["balances"]["casual"]["used"] ?? 0) as int;
+          casualTotal = (data["balances"]["casual"]["total"] ?? 12) as int;
+
+          sickUsed = (data["balances"]["sick"]["used"] ?? 0) as int;
+          sickTotal = (data["balances"]["sick"]["total"] ?? 12) as int;
+
+          sadUsed = (data["balances"]["sad"]["used"] ?? 0) as int;
+          sadTotal = (data["balances"]["sad"]["total"] ?? 12) as int;
+
+          _error = null;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error = "Failed to load balances (HTTP ${response.statusCode})";
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F1020),
-      body: Row(
-        children: [
-          // Sidebar
-          Container(
-            width: 220,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                topRight: Radius.circular(10),
-                bottomRight: Radius.circular(10),
-              ),
-            ),
-            child: ListView(
-              children: [
-                const SizedBox(height: 40),
-                ListTile(
-                  leading: const CircleAvatar(
-                    backgroundImage: AssetImage('assets/png-profile.png'),
-                  ),
-                  title: const Text('Anitha', style: TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Employee Tech'),
-                  trailing: const Icon(Icons.more_vert),
-                ),
-                const Divider(),
-                _sidebarTile(Icons.dashboard, 'Dashboard', context, const EmployeeDashboard()),
-                _sidebarTile(Icons.calendar_month, 'Leave Management', context, const LeaveManagement()),
-                _sidebarTile(Icons.payments, 'Payroll Management', context, const  EmpPayroll()),
-                _sidebarTile(Icons.how_to_reg, 'Attendance System', context, null),
-                _sidebarTile(Icons.analytics, 'Reports & Analytics', context, ReportsAnalyticsPage()),
-                _sidebarTile(Icons.people, 'Employee Directory', context, EmployeeDirectoryApp()),
-                _sidebarTile(Icons.notifications, 'Notifications', context,  NotificationsPage()),
-                _sidebarTile(Icons.person, 'Employee Profile', context,  EmployeeProfilePage()),
-              ],
-            ),
-          ),
+    final user = Provider.of<UserProvider>(context);
 
-          // Main Content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(context),
-                const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Text(
-                    'Welcome, Anitha!',
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 250),
-                  child: Wrap(
-                    spacing: 15,
-                    runSpacing: 10,
-                    children: [
-                      _quickActionButton(
-                        'Apply Leave',
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const ApplyLeave()),
-                          );
-                        },
-                      ),
-                      _quickActionButton('Download Payslip'),
-                      _quickActionButton('Mark Attendance'),
-                      _quickActionButton('Notifications Preview'),
-                      _quickActionButton('Company Events', onPressed: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(builder: (_) => const CompanyEventsScreen()),
-  );
-}),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _buildClockCard(context),
-                const SizedBox(height: 20),
-                _buildLeaveCards(),
-                const SizedBox(height: 20),
-                _buildBirthdayBanner(),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-
-  // Sidebar tile
-  static Widget _sidebarTile(IconData icon, String title, BuildContext context, Widget? page) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      onTap: () {
-        if (page != null) {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => page));
-        }
-      },
-    );
-  }
-
-  // Header bar
-  Widget _buildHeader(BuildContext context) {
-    return Container(
-      height: 80,
-      color: const Color(0xFF0F1020),
-      padding: const EdgeInsets.symmetric(horizontal: 30),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: const [
-              Icon(Icons.chevron_left, color: Colors.white),
-              SizedBox(width: 8),
-              Icon(Icons.chevron_right, color: Colors.white),
-              SizedBox(width: 16),
-              Image(image: AssetImage('assets/logo_z.png'), height: 30),
-              SizedBox(width: 446),
-              Image(image: AssetImage('assets/logo_zeai.png'), height: 80),
-            ],
-          ),
-          SizedBox(
-            width: 250,
-            child: TextField(
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Search here..',
-                hintStyle: const TextStyle(color: Colors.white70),
-                prefixIcon: const Icon(Icons.search, color: Colors.white70),
-                filled: true,
-                fillColor: const Color(0xFF2D2F41),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(30),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Quick action buttons
-  static Widget _quickActionButton(String title, {VoidCallback? onPressed}) {
-    return ElevatedButton(
-      onPressed: onPressed ?? () {},
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color.fromARGB(255, 214, 226, 231),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      child: Text(title),
-    );
-  }
-
-  // Clock and To-Do Card
-  Widget _buildClockCard(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Container(
-            width: 180,
-            height: 150,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1F2235),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.lightbulb, size: 30, color: Colors.white),
-                const SizedBox(height: 8),
-                Text(TimeOfDay.now().format(context), style: const TextStyle(color: Colors.white)),
-                const SizedBox(height: 4),
-                Text(
-                  'Today: ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
-                  style: const TextStyle(color: Colors.deepPurple),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ToDoPlanner()));
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  ),
-                  child: const Text('To do List', style: TextStyle(fontSize: 12)),
-                )
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Leave cards with circular percent
-  Widget _buildLeaveCards() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          leaveCard('Casual leave', 10, 12),
-          leaveCard('Sick leave', 9, 12),
-          leaveCard('Sad leave', 5, 12),
-        ],
-      ),
-    );
-  }
-
-  // Leave Card Widget
-  Widget leaveCard(String type, int used, int total) {
-    final remaining = total - used;
-    final percent = used / total;
-
-    return Container(
-      width: 140,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F2235),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularPercentIndicator(
-            radius: 30.0,
-            lineWidth: 6.0,
-            percent: percent,
-            center: Text("$used/$total", style: const TextStyle(color: Colors.white)),
-            progressColor: const Color.fromARGB(255, 127, 23, 145),
-            backgroundColor: Colors.white24,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            type,
-            style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold),
-          ),
-          Text("Remaining: $remaining", style: const TextStyle(color: Colors.white38, fontSize: 12)),
-        ],
-      ),
-    );
-  }
-
-  // Birthday Banner
-  Widget _buildBirthdayBanner() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.pink[50],
-          borderRadius: BorderRadius.circular(10),
-        ),
+    return Sidebar(
+      title: 'Dashboard',
+      body: SingleChildScrollView(
         child: Column(
-          children: const [
-            Text(
-              'Happy Birthday 🎂',
-              style: TextStyle(color: Colors.deepOrange, fontSize: 24, fontWeight: FontWeight.bold),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Welcome, ${employeeName ?? user.employeeName ?? '...'}!',
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
             ),
-            Text('May all your wishes come true'),
-            SizedBox(height: 10),
-            Image(image: AssetImage('assets/cake.png'), height: 80),
+            if (user.position != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  "Position: ${user.position}",
+                  style: const TextStyle(fontSize: 18, color: Colors.white70),
+                ),
+              ),
+            const SizedBox(height: 20),
+            _buildQuickActions(context),
+            const SizedBox(height: 40),
+            _buildCardLayout(context),
+            const SizedBox(height: 40),
+            const EventBannerSlider(),
+            const SizedBox(height: 20),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
+    return Center(
+      child: Wrap(
+        spacing: 90,
+        runSpacing: 20,
+        alignment: WrapAlignment.center,
+        children: [
+          _quickActionButton('Apply Leave', () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => ApplyLeave()))
+                .then((_) => _fetchLeaveBalance());
+          }),
+          _quickActionButton('Download Payslip', () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const EmpPayroll()));
+          }),
+          _quickActionButton('Mark Attendance', () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceLoginPage()));
+          }),
+          _quickActionButton('Notifications Preview', () {
+            final empId =
+                Provider.of<UserProvider>(context, listen: false).employeeId;
+            if (empId != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => EmployeeNotificationsPage(empId: empId),
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Employee ID not found.')),
+              );
+            }
+          }),
+          _quickActionButton('Company Events', () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const CompanyEventsScreen()));
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _quickActionButton(String title, VoidCallback onPressed) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color.fromARGB(255, 214, 226, 231),
+        foregroundColor: Colors.black,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        elevation: 3,
+      ),
+      child: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+      ),
+    );
+  }
+
+  Widget _buildCardLayout(BuildContext context) {
+    final currentDate = DateTime.now();
+    final formattedDate = '${currentDate.day}/${currentDate.month}/${currentDate.year}';
+    final currentTime = TimeOfDay.now().format(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Center(
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 60,
+          runSpacing: 20,
+          children: [
+            _dashboardTile(
+              icon: Icons.lightbulb,
+              title: currentTime,
+              subtitle: 'Today: $formattedDate',
+              buttonLabel: 'To Do List',
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const ToDoPlanner()));
+              },
+            ),
+            _leaveCardTile(
+              icon: Icons.beach_access,
+              title: 'Casual Leave',
+              subtitle: _isLoading
+                  ? 'Loading...'
+                  : _error != null
+                      ? 'Error'
+                      : 'Used: $casualUsed/$casualTotal\nRemaining: ${casualTotal - casualUsed}',
+              buttonLabel: 'View',
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ApplyLeave()))
+                    .then((_) => _fetchLeaveBalance());
+              },
+            ),
+            _leaveCardTile(
+              icon: Icons.local_hospital,
+              title: 'Sick Leave',
+              subtitle: _isLoading
+                  ? 'Loading...'
+                  : _error != null
+                      ? 'Error'
+                      : 'Used: $sickUsed/$sickTotal\nRemaining: ${sickTotal - sickUsed}',
+              buttonLabel: 'View',
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ApplyLeave()))
+                    .then((_) => _fetchLeaveBalance());
+              },
+            ),
+            _leaveCardTile(
+              icon: Icons.mood_bad,
+              title: 'Sad Leave',
+              subtitle: _isLoading
+                  ? 'Loading...'
+                  : _error != null
+                      ? 'Error'
+                      : 'Used: $sadUsed/$sadTotal\nRemaining: ${sadTotal - sadUsed}',
+              buttonLabel: 'View',
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => ApplyLeave()))
+                    .then((_) => _fetchLeaveBalance());
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _dashboardTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String buttonLabel,
+    VoidCallback? onTap,
+  }) {
+    return Container(
+      width: 200,
+      height: 250,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purpleAccent.withOpacity(0.6),
+            blurRadius: 18,
+            spreadRadius: 2,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.deepPurple.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 36, color: Colors.deepPurple),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ],
+          ),
+          ElevatedButton(
+            onPressed: onTap,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: Text(buttonLabel),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _leaveCardTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String buttonLabel,
+    VoidCallback? onTap,
+  }) {
+    return _dashboardTile(
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      buttonLabel: buttonLabel,
+      onTap: onTap,
     );
   }
 }
