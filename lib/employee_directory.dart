@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'sidebar.dart';
-//import 'email_page.dart';
+// import 'email_page.dart';
 import 'message.dart';
 
 class EmployeeDirectoryPage extends StatefulWidget {
@@ -15,8 +15,6 @@ class EmployeeDirectoryPage extends StatefulWidget {
 class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   List<dynamic> employees = [];
   bool _isLoading = true;
-  
-  
 
   @override
   void initState() {
@@ -26,8 +24,9 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
 
   Future<void> fetchEmployees() async {
     try {
-      final response =
-          await http.get(Uri.parse("http://localhost:5000/api/employees"));
+      final response = await http.get(
+        Uri.parse("http://localhost:5000/api/employees"),
+      );
 
       if (response.statusCode == 200) {
         setState(() {
@@ -82,24 +81,24 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                       itemCount: employees.length,
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 4,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: 0.95,
-                      ),
+                            crossAxisCount: 4,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.95,
+                          ),
                       itemBuilder: (context, index) {
                         final emp = employees[index];
-                        final imageUrl = (emp['employeeImage'] != null &&
-                                emp['employeeImage'].isNotEmpty)
+                        //final profile = emp['photo']; // 🔹 backend field
+                        final imageUrl =
+                            (emp['employeeImage'] != null && emp['employeeImage'].isNotEmpty)
                             ? "http://localhost:5000${emp['employeeImage']}"
                             : "";
                         return _employeeCard(
                           emp['employeeId'] ?? "", // ✅ pass employeeId also
                           emp['employeeName'] ?? "Unknown",
                           emp['position'] ?? "Unknown",
-                         // "http://localhost:5000/uploads/${emp['photo']}", // 🔴 profile image URL
-                         imageUrl,  // 🔹 safe URL or empty
-                         
+                          // "http://localhost:5000/uploads/${emp['photo']}", // 🔴 profile image URL
+                          imageUrl, // 🔹 safe URL or empty
                         );
                       },
                     ),
@@ -111,7 +110,12 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   }
 
   // ✅ Employee Card
-  Widget _employeeCard(String employeeId,String name, String role, String imageUrl) {
+  Widget _employeeCard(
+    String employeeId,
+    String name,
+    String role,
+    String imageUrl,
+  ) {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       elevation: 4,
@@ -132,56 +136,72 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
               },
             ),
             const SizedBox(height: 8),
-            Text(name,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13.5,
-                    color: Colors.black),
-                textAlign: TextAlign.center),
-            Text(role,
-                style:
-                    const TextStyle(fontSize: 15.5, color: Colors.black54),
-                textAlign: TextAlign.center),
+            Text(
+              name,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13.5,
+                color: Colors.black,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              role,
+              style: const TextStyle(fontSize: 15.5, color: Colors.black54),
+              textAlign: TextAlign.center,
+            ),
             const Spacer(),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children:  [
-                Icon(Icons.email, size: 25, color: Colors.deepPurple.withOpacity(0.3)),
-/*
+              children: [
                 IconButton(
-                  icon:const Icon(Icons.email, size: 25, color: Colors.deepPurple.withOpacity(0.3)),
+                  icon: Icon(
+                    Icons.email,
+                    size: 25,
+                    color: Colors.deepPurple.withOpacity(0.5),
+                  ),
+                  onPressed: null,
+                  //,
+                  // onPressed: () {
+                  //   Navigator.push(
+                  //     context,
+                  //     MaterialPageRoute(
+                  //       builder: (context) => EmailPage(
+                  //         employeeId: employeeId, // ✅ now correct
+                  //       ),
+                  //     ),
+                  //   );
+                  // },
+                ),
+                IconButton(
+                  icon: const Icon(
+                    Icons.message,
+                    size: 25,
+                    color: Colors.deepPurple,
+                  ),
                   onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EmailPage(
-                            employeeId: employeeId, // ✅ now correct
-                          ),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MsgPage(
+                          employeeId: employeeId, // ✅ new message page
                         ),
-                      );
-                    },
+                      ),
+                    );
+                  },
+                ),
 
-                    ),*/
-                      IconButton(
-                              icon: const Icon(Icons.message, size: 25, color: Colors.deepPurple),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => MsgPage(
-                                      employeeId: employeeId, // ✅ new message page
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                                        
-            
-                
                 //Icon(Icons.message, size: 25, color: Colors.deepPurple),
-                Icon(Icons.phone, size: 25, color: Colors.deepPurple.withOpacity(0.3)),
-                Icon(Icons.video_call, size: 25, color: Colors.deepPurple.withOpacity(0.3)),
-                Icon(Icons.info_outline, size: 25, color: Colors.deepPurple.withOpacity(0.3)),
+                Icon(
+                  Icons.phone,
+                  size: 25,
+                  color: Colors.deepPurple.withOpacity(0.5),
+                ),
+                Icon(
+                  Icons.video_call,
+                  size: 25,
+                  color: Colors.deepPurple.withOpacity(0.5),
+                ),
               ],
             ),
           ],
@@ -189,10 +209,6 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
       ),
     );
   }
-
-
-
- 
 
   // ✅ Search Box
   Widget _searchBox(String hint, double width) {

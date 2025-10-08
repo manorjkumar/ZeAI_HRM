@@ -104,14 +104,18 @@ class _LoginPageState extends State<LoginPage> {
               MaterialPageRoute(
                   builder: (context) => const admin.AdminDashboard()),
             );
-          } else if (position == "Founder") {
+          }  
+          else if (position == "Founder" ||
+              position == "HR" ||
+              position == "SuperAdmin") {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                  builder: (context) =>
-                      const superadmin.SuperAdminDashboard()),
+                builder: (context) => const superadmin.SuperAdminDashboard(),
+              ),
             );
-          } else {
+          }
+          else {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(

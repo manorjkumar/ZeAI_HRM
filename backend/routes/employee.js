@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const multer = require("multer");
 const path = require("path");
 const Attendance = require("../models/attendance");
-const Employee = require("../models/employee"); // 🔹 merged schema we created earlier
+const Employee = require("../models/Employee"); // 🔹 merged schema we created earlier
 const LeaveBalance = require("../models/leaveBalance");
 
 const router = express.Router();

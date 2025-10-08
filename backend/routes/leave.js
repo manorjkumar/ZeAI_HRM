@@ -4,7 +4,7 @@ const router = express.Router();
 
 const Leave = require("../models/Leave");
 const LeaveBalance = require("../models/leaveBalance");
-const Employee = require("../models/employee");
+const Employee = require("../models/Employee");
 
 // -------------------- Helpers --------------------
 const normalize = (s = "") => String(s).trim().toLowerCase();
@@ -473,7 +473,6 @@ async function updateStatus(req, res) {
     if (!updatedLeave) return res.status(404).json({ message: "❌ Leave not found" });
 
     res.json({ message: `✅ Leave ${status}`, leave: formatLeaveDates(updatedLeave) });
-
   } catch (err) {
     res.status(500).json({ message: "❌ Server error" });
   }

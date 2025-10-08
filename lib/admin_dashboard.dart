@@ -1,4 +1,6 @@
-  import 'package:flutter/material.dart';
+//admin_dashboard.dart 
+
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -14,6 +16,8 @@ import 'attendance_login.dart';
 import 'event_banner_slider.dart';
 import 'leave_approval.dart';
 import 'adminperformance.dart'; // ✅ for Performance Review
+import 'package:intl/intl.dart';
+
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -140,87 +144,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
       print("❌ Error fetching pending count: $e");
     }
   }
-  /// ✅ Employee comments popup (feedback)
-  Future<void> _showEmployeeComments() async {
+/// Delete employee comment
+  Future<void> _deleteEmployeeComment(String id) async {
     try {
-      final response = await http.get(
-        Uri.parse("http://localhost:5000/review-decision"), // ✅ fixed endpoint
-        headers: {"Accept": "application/json"},
+      final response = await http.delete(
+        Uri.parse("http://localhost:5000/review-decision/$id"),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-
-        showDialog(
-          context: context,
-          builder: (_) => AlertDialog(
-            title: const Text(
-              "Employee Feedback",
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: data.isEmpty
-                  ? const Text("No feedback available yet.")
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: data.length,
-                      itemBuilder: (context, index) {
-                        final item = data[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          child: ListTile(
-                            leading: Icon(
-                              item["decision"] == "agree"
-                                  ? Icons.thumb_up
-                                  : Icons.thumb_down,
-                              color: item["decision"] == "agree"
-                                  ? Colors.green
-                                  : Colors.red,
-                            ),
-                            title: Text(
-                              item["employeeName"] ?? "Unknown",
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(item["position"] ?? ""),
-                                const SizedBox(height: 4),
-                                Text(
-                                  item["comment"] ?? "",
-                                  style: const TextStyle(
-                                      fontStyle: FontStyle.italic),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  "Submitted: ${_formatDate(item["createdAt"])}",
-                                  style: const TextStyle(
-                                      fontSize: 12, color: Colors.grey),
-                                ),
-                              ],
-                            ),
-                            isThreeLine: true,
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Close"),
-              )
-            ],
-          ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("🗑️ Comment deleted successfully")),
         );
+        Navigator.of(context).pop(); // close current dialog
+        await _showEmployeeComments(); // refresh dialog
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                "❌ Failed to load comments (HTTP ${response.statusCode})"),
-          ),
+          SnackBar(content: Text("❌ Failed to delete (${response.statusCode})")),
         );
       }
     } catch (e) {
@@ -229,8 +168,103 @@ class _AdminDashboardState extends State<AdminDashboard> {
       );
     }
   }
+  Future<void> _showEmployeeComments() async {
+  try {
+    final response = await http.get(
+      Uri.parse("http://localhost:5000/review-decision/feedback?positions=employee,intern"),
+      headers: {"Accept": "application/json"},
+    );
 
-  /// ✅ Helper: format date nicely
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text(
+            "Employee Feedback",
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: data.isEmpty
+                ? const Text("No employee feedback available yet.")
+                : ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: data.length,
+                    itemBuilder: (context, index) {
+                      final item = data[index];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        child: ListTile(
+                          leading: Icon(
+                            item["decision"] == "agree"
+                                ? Icons.thumb_up
+                                : Icons.thumb_down,
+                            color: item["decision"] == "agree"
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                          title: Text(
+                            item["employeeName"] ?? "Unknown",
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(item["position"] ?? ""),
+                              const SizedBox(height: 4),
+                              Text(
+                                item["comment"] ?? "",
+                                style: const TextStyle(
+                                    fontStyle: FontStyle.italic),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "Submitted: ${_formatDate(item["createdAt"])}",
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                          isThreeLine: true,
+                          trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: "Delete Comment",
+                              onPressed: () async {
+                                await _deleteEmployeeComment(item["_id"]);
+                              },
+                            ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Close"),
+            )
+          ],
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              "❌ Failed to load employee feedback (HTTP ${response.statusCode})"),
+        ),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("❌ Error: $e")),
+    );
+  }
+}
+
+
+  /*// ✅ Helper: format date nicely
   String _formatDate(dynamic iso) {
     if (iso == null) return 'N/A';
     try {
@@ -241,7 +275,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
     } catch (_) {
       return iso.toString();
     }
+  }*/
+  String _formatDate(dynamic dateStr) {
+  if (dateStr == null) return '';
+  try {
+    final parsed = DateTime.tryParse(dateStr.toString());
+    if (parsed == null) return dateStr.toString();
+    return DateFormat('yyyy-MM-dd hh:mm a').format(parsed.toLocal());
+  } catch (e) {
+    return dateStr.toString();
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -330,9 +375,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
             );
           }),
           _quickActionButton('Performance Review', () {
+            final userProvider = Provider.of<UserProvider>(context, listen: false);
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => PerformanceReviewPage()),
+              MaterialPageRoute(builder: (_) => PerformanceReviewPage(currentUserId: userProvider.employeeId!)),
             );
           }),
           _quickActionButton('Employee Feedback', _showEmployeeComments),
@@ -353,7 +399,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const LeaveApprovalPage(userRole: "admin"),
+                      builder: (context) =>
+                          const LeaveApprovalPage(userRole: "admin"),
                     ),
                   ).then((_) {
                     // refresh badge after returning

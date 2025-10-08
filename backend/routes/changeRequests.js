@@ -9,20 +9,20 @@ const Employee = require('../models/profile'); // ✅ fixed import
 router.post('/profile/:id/request-change', async (req, res) => {
   try {
     const employeeId = req.params.id;
-    const { field, fullName, oldValue, newValue, requestedBy } = req.body;
-
-    console.log("📥 Incoming request:", req.body);
+    const { fullName,field, oldValue, newValue, requestedBy } = req.body;
 
     if (!field || typeof newValue === 'undefined') {
       return res.status(400).json({ message: 'field and newValue required' });
     }
+    
+
 
     const request = new ChangeRequest({
       employeeId,
-      full_name: fullName || "Unknown",
+      full_name: fullName,   // 👈 add name directly
       field,
       oldValue: oldValue ?? '',
-      newValue: newValue != null ? newValue.toString() : '',
+      newValue: newValue.toString(),
       requestedBy: requestedBy ?? employeeId,
     });
 
@@ -30,19 +30,21 @@ router.post('/profile/:id/request-change', async (req, res) => {
     res.status(201).json({ message: '✅ Request created', request });
   } catch (err) {
     console.error('❌ Failed to create request:', err);
-    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 });
-
 
 // --------------------
 // Approve a request (⚡ moved above /:id)
 router.post('/:id/approve', async (req, res) => {
   try {
-    const requestId = req.params.id;
+    const requestId = req.params.id.trim();
+    console.log("Approve requestId:", requestId);
+
     const resolver = req.body.resolvedBy || 'superadmin';
 
     const reqDoc = await ChangeRequest.findById(requestId);
+    console.log("Found request:", reqDoc);
     if (!reqDoc) return res.status(404).json({ message: 'Request not found' });
     if (reqDoc.status !== 'pending') {
       return res.status(400).json({ message: 'Request already resolved' });
@@ -57,8 +59,10 @@ router.post('/:id/approve', async (req, res) => {
       { $set: updateObj },
       { new: true }
     );
+    console.log("Updated employee:", updatedEmployee);
 
     if (!updatedEmployee) {
+      console.warn(`Employee not found for employeeId=${reqDoc.employeeId}`);
       return res.status(404).json({ message: 'Employee not found' });
     }
 
@@ -74,6 +78,8 @@ router.post('/:id/approve', async (req, res) => {
     });
   } catch (err) {
     console.error('❌ Failed to approve request:', err);
+    
+
     res.status(500).json({ message: 'Internal Server Error' });
   }
 });

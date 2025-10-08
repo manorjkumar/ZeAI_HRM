@@ -66,6 +66,13 @@ class _PayslipScreenState extends State<PayslipScreen> {
     Future.delayed(Duration.zero, _fetchPayslipDetails);
   }
 
+  int getDaysInMonth(int year, int month) {
+  final beginningNextMonth =
+      (month < 12) ? DateTime(year, month + 1, 1) : DateTime(year + 1, 1, 1);
+  return beginningNextMonth.subtract(const Duration(days: 1)).day;
+}
+
+
   Future<void> fetchWorkingDaysForPayslip() async {
     final employeeId = Provider.of<UserProvider>(context, listen: false).employeeId ?? '';
     final now = DateTime.now();
@@ -150,7 +157,10 @@ class _PayslipScreenState extends State<PayslipScreen> {
             'designation': (data['designation'] ?? '').toString(),
             'location': (data['location'] ?? '').toString(),
             // 'no_of_workdays': (data['no_of_workdays'] ?? '').toString(),
-            'no_of_workdays': noOfWorkdays.toString(),
+            'no_of_workdays':  getDaysInMonth(
+                                int.parse(selectedYear),
+                                _months.indexOf(selectedMonth) + 1,
+                              ).toString(),
             'date_of_joining': formattedDate,
             'bank_name': (data['bank_name'] ?? '').toString(),
             'account_no': (data['account_no'] ?? '').toString(),
@@ -259,7 +269,7 @@ class _PayslipScreenState extends State<PayslipScreen> {
                   pw.SizedBox(height: 10),
                   pw.Table(
                     border:
-                        pw.TableBorder.all(width: 1, color: PdfColors.grey),
+                        pw.TableBorder.all(width: 2, color: PdfColors.grey),
                     children: [
                       _detailRow('Employee Name', employeeData['employee_name'],
                           'Employee ID', employeeData['employee_id']),
@@ -284,16 +294,16 @@ class _PayslipScreenState extends State<PayslipScreen> {
                   // Earnings + Deductions
                   pw.Table(
                     border:
-                        pw.TableBorder.all(width: 1, color: PdfColors.grey),
+                        pw.TableBorder.all(width: 2, color: PdfColors.grey),
                     children: [
                       pw.TableRow(
                         decoration: pw.BoxDecoration(
                             color: PdfColor.fromHex('#9F71F8')),
                         children: [
-                          _cell('Earning'),
-                          _cell('Amount (Rs)'),
-                          _cell('Deduction'),
-                          _cell('Amount (Rs)'),
+                          _cell('Earnings', isHeader: true),
+                          _cell('Amount (Rs)', isHeader: true),
+                          _cell('Deductions', isHeader: true),
+                          _cell('Amount (Rs)', isHeader: true),
                         ],
                       ),
                       ...List.generate(
@@ -746,18 +756,51 @@ class _PayslipScreenState extends State<PayslipScreen> {
 pw.TableRow _detailRow(String k1, String? v1, String k2, String? v2) {
   return pw.TableRow(
     children: [
-      _cell('$k1: ${v1 ?? ''}'),
-      _cell('$k2: ${v2 ?? ''}'),
+      _labelValueCell(k1, v1),
+      _labelValueCell(k2, v2),
     ],
   );
 }
 
-pw.Widget _cell(String text) {
+pw.Widget _labelValueCell(String label, String? value) {
   return pw.Padding(
-    padding: const pw.EdgeInsets.symmetric(
-      vertical: 7,  // 👈 add vertical space inside cell
-      horizontal: 4,
+    padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+    child: pw.RichText(
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(
+            text: "$label: ",
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold, // ✅ Bold for label
+              fontSize: 12,
+            ),
+          ),
+          pw.TextSpan(
+            text: value ?? '',
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.normal, // ✅ Normal for value
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
     ),
-    child: pw.Text(text, style: pw.TextStyle(fontSize: 14)),
   );
 }
+
+pw.Widget _cell(String text, {bool isHeader = false}) {
+  return pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(
+      vertical: 7,
+      horizontal: 4,
+    ),
+    child: pw.Text(
+      text,
+      style: pw.TextStyle(
+        fontSize: isHeader ? 14 : 12, // bigger font for header
+        fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+      ),
+    ),
+  );
+}
+

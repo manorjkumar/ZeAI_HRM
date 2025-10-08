@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:provider/provider.dart';
 
 import 'admin_notification.dart';
 import 'sidebar.dart';
+import 'user_provider.dart';
 
 class PerformanceReviewPage extends StatefulWidget {
-  const PerformanceReviewPage({super.key});
+  final String currentUserId; // ✅ logged-in admin’s empId
 
+  const PerformanceReviewPage({super.key, required this.currentUserId});
   @override
   State<PerformanceReviewPage> createState() => _PerformanceReviewPageState();
 }
@@ -20,8 +23,8 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
     "ZeAI107": "Udaykiran",
     "ZeAI108": "Hariprasad",
     "ZeAI111": "Vishal",
-    "ZeAI116": "Gowsalya",
-    "ZeAI124": "Manojkumar",
+    "ZeAI116": "Gowsalya S",
+    "ZeAI124": "Manojkumar K",
   };
   late final Map<String, String> nameToIdMap;
 
@@ -37,6 +40,8 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
   TextEditingController attitudeController = TextEditingController();
   TextEditingController technicalKnowledgeController = TextEditingController();
   TextEditingController businessKnowledgeController = TextEditingController();
+
+  bool isLoading = false;
 
   @override
   void initState() {
@@ -78,6 +83,9 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
     }
 
     final url = Uri.parse('http://localhost:5000/reviews');
+    final reviewerName =
+        Provider.of<UserProvider>(context, listen: false).employeeName ??
+        'Admin';
     final body = {
       "empId": selectedEmpId,
       "empName": selectedEmpName,
@@ -85,7 +93,7 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
       "attitude": attitudeController.text,
       "technicalKnowledge": technicalKnowledgeController.text,
       "business": businessKnowledgeController.text,
-      "reviewedBy": "admin",
+      "reviewedBy": reviewerName,
       "flag": selectedFlag,
     };
 
@@ -105,23 +113,42 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
           ),
         );
 
-        // 🔔 Add notification
-        String currentMonth = getCurrentMonth();
-        final notifUrl = Uri.parse("http://localhost:5000/notifications");
-        final notifBody = {
-          "month": currentMonth,
-          "category": "performance",
-          "message":
-              "Performance review for $selectedEmpName ($selectedEmpId) - $currentMonth",
-          "empId": selectedEmpId,
-          "flag": selectedFlag,
-        };
-        await http.post(
-          notifUrl,
-          headers: {"Content-Type": "application/json"},
-          body: jsonEncode(notifBody),
-        );
+        // 🔔 Create notifications
+      final notifUrl = Uri.parse("http://localhost:5000/notifications");
+      String currentMonth = getCurrentMonth();
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+       final adminName = userProvider.employeeName ?? 'Admin';
 
+      // 1️⃣ Employee notification
+      final employeeNotif = {
+        "month": currentMonth,
+        "category": "performance",
+        // "message": "Performance review for $selectedEmpName ($selectedEmpId) - $currentMonth",
+        "message": "Performance received from ($adminName) - $currentMonth",
+        "empId": selectedEmpId,
+        "senderName": adminName,
+        "senderId": widget.currentUserId,
+        "flag": selectedFlag,
+      };
+      await http.post(notifUrl,
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode(employeeNotif));
+
+      // 2️⃣ Admin self-copy
+      final adminNotif = {
+        "month": currentMonth,
+        "category": "performance",
+        // "message": "You reviewed $selectedEmpName ($selectedEmpId) - $currentMonth",
+        "message": "Performance sent to ($selectedEmpName) - $currentMonth",
+        "empId": widget.currentUserId, // ✅ logged-in admin’s own ID
+        "senderName": adminName,
+        "senderId": widget.currentUserId,
+        "flag": selectedFlag,
+      };
+      await http.post(notifUrl,
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode(adminNotif));
+          
         // ✅ Reset form
         communicationController.clear();
         attitudeController.clear();
@@ -138,7 +165,7 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => const AdminNotificationsPage(empId: "ALL"),
+              builder: (context) =>  AdminNotificationsPage(empId: widget.currentUserId),
             ),
           );
         });
@@ -299,28 +326,43 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
             // 🔹 Send Button
             Align(
               alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                onPressed: submitReview,
-                icon: const Icon(Icons.send),
-                label: const Text("Send"),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
+              child: _buildActionButtons(),
             ),
           ],
         ),
       ),
     );
   }
+
+Widget _buildActionButtons() {
+    final reviewerName =
+        Provider.of<UserProvider>(context, listen: false).employeeName ??
+        'Admin';
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            const Text("Reviewed by", style: TextStyle(color: Colors.white70)),
+            Text(
+              reviewerName,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(width: 20),
+        ElevatedButton.icon(
+          onPressed: isLoading ? null : submitReview,
+          icon: const Icon(Icons.send),
+          label: const Text("Send"),
+        ),
+      ],
+    );
+  }  
 
   Widget reviewField(String label, TextEditingController controller) {
     return Padding(

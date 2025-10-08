@@ -21,14 +21,14 @@ const reviewRiver = require('./routes/adminperformance');
 const reviewscreen = require("./routes/reviewRoutes");
 const reviewDecisionRoutes = require("./routes/performanceDecision");
 const notificationRoutes = require('./routes/notifications');
-const requestsRoutes = require('./routes/requests');
+const requestsRoutes = require('./routes/changeRequests');
 const uploadRoutes = require("./routes/upload");
 const payslipRoutes = require("./routes/payslip");
 
 
 const app = express();
 const PORT = 5000;
-const MONGO_URI = 'mongodb://localhost:27017/Demo_Db';
+const MONGO_URI = 'mongodb://localhost:27017/NEWDemo_Db';
 
 // ---------------- MIDDLEWARE ---------------- //
 app.use((req, res, next) => {
@@ -126,17 +126,15 @@ app.post('/get-multiple-payslips', async (req, res) => {
 
     res.status(200).json({
       employeeInfo: {
-        name: payslip.name,
+        employee_name: payslip.employee_name,
         employee_id: payslip.employee_id,
+        date_of_joining: payslip.date_of_joining,
+        no_of_workdays: payslip.no_of_workdays,
         designation: payslip.designation,
-        no_of_daysworked: payslip.no_of_daysworked,
-        date_of_join: payslip.date_of_join,
-        location: payslip.location,
         bank_name: payslip.bank_name,
-        branch: payslip.branch,
-        ifsc_code: payslip.ifsc_code,
         account_no: payslip.account_no,
-        pan_no: payslip.pan_no,
+        location: payslip.location,
+        pan: payslip.pan,
         uan: payslip.uan,
         esic_no: payslip.esic_no,
         lop: payslip.lop,

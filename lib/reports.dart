@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'sidebar.dart';
 import 'user_provider.dart';
 import 'package:percent_indicator/circular_percent_indicator.dart';
+import 'package:intl/intl.dart';
 
 // ---------------- Model ----------------
 class PerformanceReview {
@@ -72,7 +73,7 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
 
   List<PerformanceReview> _reviews = [];
   bool _loadingList = true;
-  bool _dataFetched = false;
+   //bool _dataFetched = false;
 
   int workProgress = 0;
   int leaveUsed = 0;
@@ -82,24 +83,25 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
   @override
   void initState() {
     super.initState();
-    if (!_dataFetched) {
-      final userProvider = Provider.of<UserProvider>(context, listen: false);
-      final empId = userProvider.employeeId ?? '';
-
-      if (empId.isNotEmpty) {
-        fetchPerformanceReviews(empId);
-        fetchWorkProgress(empId);
-        fetchLeaveStats(empId);
-        _dataFetched = true;
-      }
-    }
+    fetchPerformanceReviews();
+    fetchWorkProgress();
+    fetchLeaveStatus();
   }
 
   // ✅ Fetch performance list
-  Future<void> fetchPerformanceReviews(String empId) async {
+  Future<void> fetchPerformanceReviews([String? empId]) async {
     setState(() => _loadingList = true);
     try {
-      final uri = Uri.parse('$apiBase$listPath/employee/$empId');
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final employeeId = empId ?? userProvider.employeeId;
+
+      if (employeeId == null || employeeId.isEmpty) {
+        _showSnack("No employee logged in");
+        setState(() => _loadingList = false);
+        return;
+      }
+
+      final uri = Uri.parse('$apiBase$listPath/employee/$employeeId');
       final response = await http.get(
         uri,
         headers: {'Accept': 'application/json'},
@@ -143,67 +145,35 @@ class _ReportsAnalyticsPageState extends State<ReportsAnalyticsPage> {
     }
     return null;
   }
-
-  // ✅ updated sendDecision method (with reviewId)
+// ✅ Send decision helper
 Future<void> _sendDecision({
-  required PerformanceReview review,
-  required Map<String, dynamic> reviewData,
   required String decision,
-  required String? comment,
+  required String comment,
+  required Map<String, dynamic> reviewData,
+  required PerformanceReview review,
 }) async {
   final userProvider = Provider.of<UserProvider>(context, listen: false);
-  final reviewedBy = review.reviewedBy.trim().toLowerCase();
 
-  // Decide recipients based on who reviewed
-  List<String> targets = [];
-  if (reviewedBy == "admin") {
-    targets = ["Admin", "Super Admin"];
-  } else if (reviewedBy == "super admin") {
-    targets = ["Super Admin"];
-  } else {
-    targets = [review.reviewedBy]; // fallback
-  }
-
-  final uri = Uri.parse('$apiBase/review-decision');
   final body = json.encode({
     "employeeId": userProvider.employeeId,
-    "employeeName": reviewData['empName'],
-    "position": reviewData['position'] ?? "employee",
+    "employeeName": userProvider.employeeName,   // ✅ logged-in user name
+    "position": (userProvider.position ?? "employee").toString().trim().toLowerCase(),// ✅ use login role
     "decision": decision,
     "comment": comment,
-    "sendTo": targets,
-    "reviewId": review.id, // ✅ send reviewId to backend
+    "sendTo": ["hr"], 
+    "reviewId": review.id,
   });
 
-  try {
-    final response = await http.post(
-      uri,
-      headers: {"Content-Type": "application/json"},
-      body: body,
-    );
-
-    if (response.statusCode == 201) {
-      debugPrint("Decision sent successfully");
-
-      // Update local status too
-      final updatedStatus = decision == "agree" ? "Agreed" : "Disagreed";
-      setState(() {
-        final index = _reviews.indexWhere((r) => r.id == review.id);
-        if (index != -1) {
-          _reviews[index].status = updatedStatus;
-        }
-      });
-    } else {
-      debugPrint("Failed to send decision: ${response.body}");
-    }
-  } catch (e) {
-    debugPrint("Error sending decision: $e");
-  }
+  await http.post(
+    Uri.parse('$apiBase/review-decision'),
+    headers: {"Content-Type": "application/json"},
+    body: body,
+  );
 }
-
 
   // ✅ Show review details with Agree & Disagree
   Future<void> _showReviewDetails(PerformanceReview review) async {
+    final isFinal = review.status == "Agreed" || review.status == "Disagreed";
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -216,8 +186,6 @@ Future<void> _sendDecision({
     if (reviewData != null && mounted) {
       final reviewedAt = reviewData['reviewedAt'] ?? reviewData['createdAt'];
       final flagColor = _getFlagTextColor(review.flag);
-      final reviewIndex = _reviews.indexWhere((r) => r.id == review.id);
-      if (reviewIndex == -1) return;
 
       await showDialog(
         context: context,
@@ -282,8 +250,7 @@ Future<void> _sendDecision({
                         ),
                         _detailRow(
                           "Business",
-                          reviewData['businessKnowledge'] ??
-                              reviewData['business'],
+                          reviewData['business'],
                           textColor: Colors.black,
                         ),
                         _detailRow("Flag", review.flag, textColor: flagColor),
@@ -293,62 +260,59 @@ Future<void> _sendDecision({
                           textColor: Colors.black,
                         ),
                         const SizedBox(height: 16),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            TextButton(
-                              onPressed: () async {
-                                final comment = await _askComment(
-                                  "Reason for Agree",
-                                );
-                                if (comment == null) return;
+                        if (!isFinal)
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              // ✅ Agree
+                              TextButton(
+                                onPressed: () async {
+                                  final comment = await _askComment(
+                                    "Reason for Agree (Optional)",
+                                  );
+                                  if (comment == null) return;
 
-                                await _sendDecision(
-                                  review: review,
-                                  reviewData: reviewData,
-                                  decision: "agree",
-                                  comment: comment,
-                                );
+                                  await _sendDecision(
+                                    decision: "agree",
+                                    comment: comment,
+                                    reviewData: reviewData,
+                                    review: review,
+                                  );
 
-                                setState(() {
-                                  _reviews[reviewIndex].status = "Agreed";
-                                });
-
-                                Navigator.pop(context);
-                              },
-                              child: const Text(
-                                "Agree",
-                                style: TextStyle(color: Colors.green),
+                                  await fetchPerformanceReviews(); // ✅ refresh from backend
+                                  if (mounted) Navigator.pop(context);
+                                },
+                                child: const Text(
+                                  "Agree",
+                                  style: TextStyle(color: Colors.green),
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            TextButton(
-                              onPressed: () async {
-                                final comment = await _askComment(
-                                  "Reason for Disagree",
-                                );
-                                if (comment == null) return;
+                              const SizedBox(width: 8),
+                              // ❌ Disagree
+                              TextButton(
+                                onPressed: () async {
+                                  final comment = await _askComment(
+                                    "Reason for Disagree (Optional)",
+                                  );
+                                  if (comment == null) return;
 
-                                await _sendDecision(
-                                  review: review,
-                                  reviewData: reviewData,
-                                  decision: "disagree",
-                                  comment: comment,
-                                );
+                                  await _sendDecision(
+                                    decision: "disagree",
+                                    comment: comment,
+                                    reviewData: reviewData,
+                                    review: review,
+                                  );
 
-                                setState(() {
-                                  _reviews[reviewIndex].status = "Disagreed";
-                                });
-
-                                Navigator.pop(context);
-                              },
-                              child: const Text(
-                                "Disagree",
-                                style: TextStyle(color: Colors.red),
+                                  await fetchPerformanceReviews(); // ✅ refresh
+                                  if (mounted) Navigator.pop(context);
+                                },
+                                child: const Text(
+                                  "Disagree",
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
                       ],
                     ),
                   ),
@@ -369,7 +333,9 @@ Future<void> _sendDecision({
             title: Text(title),
             content: TextField(
               controller: controller,
-              decoration: const InputDecoration(hintText: "Enter comment"),
+              decoration: const InputDecoration(
+                hintText: "Enter comment (optional)",
+              ),
             ),
             actions: [
               TextButton(
@@ -386,47 +352,56 @@ Future<void> _sendDecision({
   }
 
   // ---------------- Fetch stats ----------------
-  Future<void> fetchWorkProgress(String empId) async {
-    var url = Uri.parse('$apiBase/todo_planner/todo/progress/$empId');
-    try {
-      var response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          workProgress = data['progress'] ?? 0;
-        });
-      }
-    } catch (_) {}
+  // ---------------- Fetch stats ----------------
+Future<void> fetchWorkProgress() async {
+  final userProvider = Provider.of<UserProvider>(context, listen: false);
+  final employeeId = userProvider.employeeId ?? '';
+  if (employeeId.isEmpty) return;
+
+  var url = Uri.parse('$apiBase/todo_planner/todo/progress/$employeeId');
+  try {
+    var response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      setState(() {
+        workProgress = data['progress'] ?? 0;
+      });
+    }
+  } catch (e) {
+    print('Error fetching work progress: $e');
   }
+}
 
-  Future<void> fetchLeaveStats(String empId) async {
-    var url = Uri.parse('$apiBase/apply/leave-balance/$empId');
-    try {
-      var response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final balances = data['balances'] ?? {};
+Future<void> fetchLeaveStatus() async {
+  final userProvider = Provider.of<UserProvider>(context, listen: false);
+  final employeeId = userProvider.employeeId ?? '';
+  if (employeeId.isEmpty) return;
 
-        int totalUsed =
-            (balances['casual']?['used'] ?? 0) +
-            (balances['sick']?['used'] ?? 0) +
-            (balances['sad']?['used'] ?? 0);
+  var url = Uri.parse('$apiBase/apply/leave-balance/$employeeId'); // updated
+  try {
+    var response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
 
-        setState(() {
-          leaveUsed = totalUsed;
-          int totalLeaves =
-              (balances['casual']?['total'] ?? 0) +
-              (balances['sick']?['total'] ?? 0) +
-              (balances['sad']?['total'] ?? 0);
+      final balances = data['balances'] ?? {};
+      int casualUsed = balances['casual']?['used'] ?? 0;
+      int sickUsed = balances['sick']?['used'] ?? 0;
+      int sadUsed = balances['sad']?['used'] ?? 0;
 
-          double percent =
-              totalLeaves > 0 ? (leaveUsed / totalLeaves) * 100 : 0;
-          leavePercent = percent.toStringAsFixed(0);
-          presentPercent = (100 - percent).toStringAsFixed(0);
-        });
-      }
-    } catch (_) {}
+      int totalUsed = casualUsed + sickUsed + sadUsed;
+      int totalAllowed = 12 * 3; // assuming each type has 12 allowance
+
+      setState(() {
+        leaveUsed = totalUsed;
+        leavePercent = ((totalUsed / totalAllowed) * 100).toStringAsFixed(1);
+        presentPercent = (100 - (totalUsed / totalAllowed * 100)).toStringAsFixed(1);
+      });
+    }
+  } catch (e) {
+    print('Error fetching leave stats: $e');
   }
+}
+
 
   // ---------------- UI ----------------
   @override
@@ -583,7 +558,15 @@ Future<void> _sendDecision({
                     style: const TextStyle(color: Colors.white70),
                   ),
                 ),
-                DataCell(buildFlagCell(latestReview.flag)), // ✅ merged UI
+                DataCell(
+                  Text(
+                    latestReview.flag,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: _getFlagTextColor(latestReview.flag),
+                    ),
+                  ),
+                ),
                 DataCell(
                   GestureDetector(
                     onTap: () async {
@@ -612,35 +595,7 @@ Future<void> _sendDecision({
     );
   }
 
-  // ✅ Flag cell with icon + color
-  Widget buildFlagCell(String? flagValue) {
-    String flag = (flagValue ?? '').toLowerCase();
-    Color color;
-    IconData icon = Icons.flag;
-
-    if (flag.contains('red')) {
-      color = Colors.red;
-    } else if (flag.contains('yellow')) {
-      color = Colors.amber;
-    } else if (flag.contains('green')) {
-      color = Colors.green;
-    } else {
-      color = Colors.grey;
-    }
-
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 18),
-        const SizedBox(width: 6),
-        Text(
-          flagValue ?? 'Unknown',
-          style: TextStyle(color: color, fontWeight: FontWeight.bold),
-        ),
-      ],
-    );
-  }
-
-  // ✅ Keep fallback flag text color (for popup bar color)
+  // ✅ Flag text color
   Color _getFlagTextColor(String flag) {
     final normalized = flag.toLowerCase().replaceAll(" flag", "").trim();
     switch (normalized) {
@@ -669,17 +624,15 @@ Future<void> _sendDecision({
     );
   }
 
-  String _formatDate(dynamic iso) {
-    if (iso == null) return 'N/A';
-    try {
-      final dt = DateTime.tryParse(iso.toString());
-      if (dt == null) return iso.toString();
-      return "${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} "
-          "${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}";
-    } catch (_) {
-      return iso.toString();
-    }
+ String _formatDate(dynamic iso) {
+  if (iso == null) return 'N/A';
+  try {
+    final dt = DateTime.parse(iso.toString()).toLocal();
+    return DateFormat('yyyy-MM-dd hh:mm a').format(dt); // 2025-10-03 12:09 PM
+  } catch (_) {
+    return iso.toString();
   }
+}
 
   void _showSnack(String msg) {
     if (!mounted) return;

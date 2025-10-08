@@ -169,7 +169,7 @@ class _ToDoPlannerState extends State<ToDoPlanner> {
                         style: const TextStyle(color: Colors.white)),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
-                      value: selectedWorkStatus,
+                      initialValue: selectedWorkStatus,
                       dropdownColor: Colors.black,
                       items: workStatusOptions
                           .map((e) => DropdownMenuItem(
@@ -210,7 +210,7 @@ class _ToDoPlannerState extends State<ToDoPlanner> {
                           ),
                           DropdownButtonFormField<String>(
                             dropdownColor: Colors.black,
-                            value: workItems[index]['status']?.isNotEmpty == true
+                            initialValue: workItems[index]['status']?.isNotEmpty == true
                                 ? workItems[index]['status']
                                 : null,
                             items: statusOptions

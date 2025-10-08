@@ -1,3 +1,5 @@
+//super admindashboard.dart 
+
 // lib/super_admin_dashboard.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -23,6 +25,8 @@ import 'leave_approval.dart';
 //import 'adminperformance.dart'; // for Performance Review
 import 'superadmin_performance.dart';// ✅ for SuperadminPerformancePageReview
 import 'employee_list.dart';
+import 'package:intl/intl.dart';
+
 
 class SuperAdminDashboard extends StatefulWidget {
   const SuperAdminDashboard({super.key});
@@ -167,7 +171,30 @@ Future<void> fetchEmployeeName() async {
     }
   }
 
+/// Delete employee comment
+  Future<void> _deleteEmployeeComment(String id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse("http://localhost:5000/review-decision/$id"),
+      );
 
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("🗑️ Comment deleted successfully")),
+        );
+        Navigator.of(context).pop(); // close current dialog
+        await _showEmployeeComments(); // refresh dialog
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("❌ Failed to delete (${response.statusCode})")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Error: $e")),
+      );
+    }
+  }
 
   /// Employee comments popup
   Future<void> _showEmployeeComments() async {
@@ -225,6 +252,13 @@ Future<void> fetchEmployeeName() async {
                               ],
                             ),
                             isThreeLine: true,
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: "Delete Comment",
+                              onPressed: () async {
+                                await _deleteEmployeeComment(item["_id"]);
+                              },
+                            ),
                           ),
                         );
                       },
@@ -545,7 +579,7 @@ Future<void> fetchEmployeeName() async {
 
 
 
-  /// Helper: format date in YYYY-MM-DD hh:mm with zero padding
+  /*// Helper: format date in YYYY-MM-DD hh:mm with zero padding
   String _formatDate(dynamic iso) {
     if (iso == null) return 'N/A';
     try {
@@ -560,7 +594,18 @@ Future<void> fetchEmployeeName() async {
     } catch (_) {
       return iso.toString();
     }
+  }*/
+  String _formatDate(dynamic dateStr) {
+  if (dateStr == null) return '';
+  try {
+    final parsed = DateTime.tryParse(dateStr.toString());
+    if (parsed == null) return dateStr.toString();
+    return DateFormat('yyyy-MM-dd hh:mm a').format(parsed.toLocal());
+  } catch (e) {
+    return dateStr.toString();
   }
+}
+
 
   /// 🔹 Fetch pending change requests
   Future<List<dynamic>> _fetchPendingRequests() async {
@@ -792,8 +837,9 @@ Future<void> fetchEmployeeName() async {
             );
           }),
           _quickActionButton('Performance Review', () {
+             final userProvider = Provider.of<UserProvider>(context, listen: false);
             Navigator.push(context,
-                MaterialPageRoute(builder: (_) => SuperadminPerformancePage()));
+                MaterialPageRoute(builder: (_) => SuperadminPerformancePage(currentUserId: userProvider.employeeId!)));
           }),
           _quickActionButton('Employee Feedback', _showEmployeeComments),
           _quickActionButton('Request', _showChangeRequests),

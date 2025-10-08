@@ -230,7 +230,7 @@ class _ApplyLeaveState extends State<ApplyLeave> {
                       const SizedBox(height: 5),
                       DropdownButtonFormField<String>(
                         dropdownColor: Colors.white,
-                        value: selectedLeaveType,
+                        initialValue: selectedLeaveType,
                         items: ['Sick', 'Casual', 'Sad']
                             .map((type) =>
                                 DropdownMenuItem(value: type, child: Text(type)))

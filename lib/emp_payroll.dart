@@ -50,6 +50,12 @@ class _EmpPayrollState extends State<EmpPayroll> {
     return true; // ✅ all valid months are checked
   }
 
+  int getDaysInMonth(int year, int month) {
+  final beginningNextMonth =
+      (month < 12) ? DateTime(year, month + 1, 1) : DateTime(year + 1, 1, 1);
+  return beginningNextMonth.subtract(const Duration(days: 1)).day;
+}
+
   static const List<String> months = [
     'January',
     'February',
@@ -197,9 +203,12 @@ class _EmpPayrollState extends State<EmpPayroll> {
                           'Account No', employee['account_no']),
                       _detailRow('Location', employee['location'], 'UAN',
                           employee['uan']),
-                      _detailRow('No.Of Days Worked',
-                          employee['no_of_workdays'], 'ESIC No',
-                          employee['esic_no']),
+                      _detailRow(
+                            'No.Of Days Worked',
+                            getDaysInMonth(int.parse(selectedYear!), monthIndex + 1).toString(),
+                            'ESIC No',
+                            employee['esic_no'],
+),
                       _detailRow('PAN', employee['pan'], 'LOP',
                           employee['lop']),
                     ],
@@ -217,11 +226,11 @@ class _EmpPayrollState extends State<EmpPayroll> {
                         decoration: pw.BoxDecoration(
                             color: PdfColor.fromHex('#9F71F8')),
                         children: [
-                          _cell('Earning'),
-                          _cell('Amount (Rs)'),
-                          _cell('Deduction'),
-                          _cell('Amount (Rs)'),
-                        ],
+                                _cell('Earnings', isHeader: true),
+                                _cell('Amount (Rs)', isHeader: true),
+                                _cell('Deductions', isHeader: true),
+                                _cell('Amount (Rs)', isHeader: true),
+],
                       ),
                       ...List.generate(
                         (earnings.length > deductions.length
@@ -579,18 +588,50 @@ class _EmpPayrollState extends State<EmpPayroll> {
 pw.TableRow _detailRow(String k1, String? v1, String k2, String? v2) {
   return pw.TableRow(
     children: [
-      _cell('$k1: ${v1 ?? ''}'),
-      _cell('$k2: ${v2 ?? ''}'),
+      _labelValueCell(k1, v1),
+      _labelValueCell(k2, v2),
     ],
   );
 }
 
-pw.Widget _cell(String text) {
+pw.Widget _labelValueCell(String label, String? value) {
+  return pw.Padding(
+    padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+    child: pw.RichText(
+      text: pw.TextSpan(
+        children: [
+          pw.TextSpan(
+            text: "$label: ",
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.bold, // ✅ Bold for label
+              fontSize: 12,
+            ),
+          ),
+          pw.TextSpan(
+            text: value ?? '',
+            style: pw.TextStyle(
+              fontWeight: pw.FontWeight.normal, // ✅ Normal for value
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+pw.Widget _cell(String text, {bool isHeader = false}) {
   return pw.Padding(
     padding: const pw.EdgeInsets.symmetric(
-      vertical: 7,  // 👈 add vertical space inside cell
+      vertical: 7,
       horizontal: 4,
     ),
-    child: pw.Text(text, style: pw.TextStyle(fontSize: 14)),
+    child: pw.Text(
+      text,
+      style: pw.TextStyle(
+        fontSize: isHeader ? 14 : 12, // bigger font for header
+        fontWeight: isHeader ? pw.FontWeight.bold : pw.FontWeight.normal,
+      ),
+    ),
   );
 }
