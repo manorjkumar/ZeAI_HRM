@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require("path");
 
 // ---------------- MODELS ---------------- //
-const Employee = require("../models/employee");
+const Employee = require("./models/employee");
 const LeaveBalance = require("./models/leaveBalance");
 const Payslip = require('./schema/payslip');
 
