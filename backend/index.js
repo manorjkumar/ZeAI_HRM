@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -26,11 +28,15 @@ const uploadRoutes = require("./routes/upload");
 const payslipRoutes = require("./routes/payslip");
 
 
-const app = express();
+//const app = express();
 //const PORT = 5000;
-const PORT = process.env.PORT || 5000;
-const MONGO_URI = 'mongodb://localhost:27017/NEWDemo_Db';
+//const PORT = process.env.PORT || 5000;
+//const MONGO_URI = 'mongodb+srv://manoramu39_db_user:D3DDOrz99qPH9Rdb@hrmcluster0.nrhpqmd.mongodb.net/';
+//const MONGO_URI = 'mongodb+srv://manoramu39_db_user:D3DDOrz99qPH9Rdb@hrmcluster0.nrhpqmd.mongodb.net/employees?retryWrites=true&w=majority';
 
+const app = express();
+const PORT = process.env.PORT || 5000;
+const MONGO_URI = process.env.MONGO_URI;
 // ---------------- MIDDLEWARE ---------------- //
 app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.originalUrl}`);
