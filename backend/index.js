@@ -3,76 +3,66 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require("path");
+const path = require('path');
 
 // ---------------- MODELS ---------------- //
-const Employee = require("./models/employee");
-const LeaveBalance = require("./models/leaveBalance");
+const Employee = require('./models/employee');
+const LeaveBalance = require('./models/leaveBalance');
 const Payslip = require('./schema/payslip');
 
-
 // ---------------- ROUTES ---------------- //
-const employeeRoutes = require("./routes/employee"); // /api/employee CRUD & login
+const employeeRoutes = require('./routes/employee');
 const leaveRoutes = require('./routes/leave');
 const profileRoutes = require('./routes/profile_route');
-
 const todoRoutes = require('./routes/todo');
 const attendanceRoutes = require('./routes/attendance');
 const performanceRoutes = require('./routes/performance');
 const reviewRiver = require('./routes/adminperformance');
-const reviewscreen = require("./routes/reviewRoutes");
-const reviewDecisionRoutes = require("./routes/performanceDecision");
+const reviewscreen = require('./routes/reviewRoutes');
+const reviewDecisionRoutes = require('./routes/performanceDecision');
 const notificationRoutes = require('./routes/notifications');
 const requestsRoutes = require('./routes/changeRequests');
-const uploadRoutes = require("./routes/upload");
-const payslipRoutes = require("./routes/payslip");
+const uploadRoutes = require('./routes/upload');
+const payslipRoutes = require('./routes/payslip');
 
-
-//const app = express();
-//const PORT = 5000;
-//const PORT = process.env.PORT || 5000;
-//const MONGO_URI = 'mongodb+srv://manoramu39_db_user:D3DDOrz99qPH9Rdb@hrmcluster0.nrhpqmd.mongodb.net/';
-//const MONGO_URI = 'mongodb+srv://manoramu39_db_user:D3DDOrz99qPH9Rdb@hrmcluster0.nrhpqmd.mongodb.net/employees?retryWrites=true&w=majority';
-
+// ---------------- EXPRESS APP SETUP ---------------- //
 const app = express();
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
+
 // ---------------- MIDDLEWARE ---------------- //
 app.use((req, res, next) => {
   console.log(`📥 ${req.method} ${req.originalUrl}`);
   next();
 });
-app.use(cors());
+
+app.use(cors({
+  origin: [
+    "https://your-netlify-app.netlify.app", // 🔁 Replace with your actual Netlify domain
+    "http://localhost:3000" // for local testing (optional)
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ---------------- ROUTES ---------------- //
-app.use("/api", employeeRoutes);
+app.use('/api', employeeRoutes);
 app.use('/apply', leaveRoutes);
 app.use('/profile', profileRoutes);
 app.use('/todo_planner', todoRoutes);
 app.use('/attendance', attendanceRoutes);
 app.use('/perform', performanceRoutes);
 app.use('/reviews', reviewRiver);
-app.use("/reports", reviewscreen);
-app.use("/review-decision", reviewDecisionRoutes);
+app.use('/reports', reviewscreen);
+app.use('/review-decision', reviewDecisionRoutes);
 app.use('/notifications', notificationRoutes);
 app.use('/requests', requestsRoutes);
-app.use("/upload", uploadRoutes);
-app.use("/upload", require("./routes/upload"))
-app.use("/payslip", payslipRoutes);
-
-// // ✅ Employee Schema & Model (employees collection only)
-// const employeeSchema = new mongoose.Schema({
-//   employeeId: String,
-//   employeeName: String,
-//   position: String,
-//   domain: String,            // ✅ added
-//   employeeImage: String,     // ✅ added
-// }, { timestamps: true });
-
-// const Employee = mongoose.models.Employee || mongoose.model("Employee", employeeSchema, "employees");
+app.use('/upload', uploadRoutes);
+app.use('/payslip', payslipRoutes);
 
 // ---------------- PAYSLIP APIs ---------------- //
 app.get('/get-payslip-details', async (req, res) => {
@@ -104,7 +94,6 @@ app.get('/get-payslip-details', async (req, res) => {
       earnings: monthData.earnings,
       deductions: monthData.deductions,
     });
-
   } catch (error) {
     console.error('❌ Fetch Payslip Error:', error);
     res.status(500).json({ message: '❌ Failed to fetch payslip data', error: error.message });
@@ -154,7 +143,6 @@ app.post('/get-multiple-payslips', async (req, res) => {
   }
 });
 
-
 // ---------------- GET EMPLOYEE NAME ---------------- //
 app.get('/get-employee-name/:employeeId', async (req, res) => {
   try {
@@ -171,10 +159,15 @@ app.get('/get-employee-name/:employeeId', async (req, res) => {
   }
 });
 
+// ---------------- ROOT ROUTE (for testing Render) ---------------- //
+app.get('/', (req, res) => {
+  res.send('✅ HRM Backend is running successfully!');
+});
+
 // ---------------- CONNECT MONGODB & START SERVER ---------------- //
 mongoose.connect(MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB connected');
-    app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
   })
   .catch(err => console.error('❌ MongoDB connection error:', err));

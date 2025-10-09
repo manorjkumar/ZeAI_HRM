@@ -51,7 +51,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final employeeId =
         Provider.of<UserProvider>(context, listen: false).employeeId ?? '';
     var url = Uri.parse(
-        'http://localhost:5000/attendance/attendance/status/$employeeId');
+        'https://hrm-backend-knsv.onrender.com/attendance/attendance/status/$employeeId');   //CHECK
 
     try {
       var response = await http.get(url);
@@ -94,7 +94,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final employeeId =
         Provider.of<UserProvider>(context, listen: false).employeeId ?? '';
     var url =
-        Uri.parse('http://localhost:5000/attendance/attendance/mark/$employeeId');
+        Uri.parse('https://hrm-backend-knsv.onrender.com/attendance/attendance/mark/$employeeId');
 
     var body = {
       'date': getCurrentDate(),
@@ -127,7 +127,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final employeeId =
         Provider.of<UserProvider>(context, listen: false).employeeId ?? '';
     var url = Uri.parse(
-        'http://localhost:5000/attendance/attendance/update/$employeeId');
+        'https://hrm-backend-knsv.onrender.com/attendance/attendance/update/$employeeId');
 
     var body = {
       'date': getCurrentDate(),
@@ -163,7 +163,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final employeeId =
           Provider.of<UserProvider>(context, listen: false).employeeId ?? '';
       var url = Uri.parse(
-          'http://localhost:5000/attendance/attendance/history/$employeeId');
+          'https://hrm-backend-knsv.onrender.com/attendance/attendance/history/$employeeId');
       var response = await http.get(url);
 
       if (response.statusCode == 200) {
