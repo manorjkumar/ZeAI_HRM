@@ -38,7 +38,7 @@ app.use((req, res, next) => {
 
 app.use(cors({
   origin: [
-    "https://friendly-torte-c0ec6e.netlify.app", // 🔁 Replace with your actual Netlify domain
+    "https://ubiquitous-elf-83cae9.netlify.app/", // 🔁 Replace with your actual Netlify domain
     //"http://localhost:3000" // for local testing (optional)
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
