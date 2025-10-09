@@ -25,7 +25,7 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   Future<void> fetchEmployees() async {
     try {
       final response = await http.get(
-        Uri.parse("https://hrm-backend-knsv.onrender.com/api/employees"),
+        Uri.parse("https://zeai-hrm-1.onrender.com/api/employees"),
       );
 
       if (response.statusCode == 200) {
@@ -91,7 +91,7 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                         //final profile = emp['photo']; // 🔹 backend field
                         final imageUrl =
                             (emp['employeeImage'] != null && emp['employeeImage'].isNotEmpty)
-                            ? "https://hrm-backend-knsv.onrender.com${emp['employeeImage']}"
+                            ? "https://zeai-hrm-1.onrender.com${emp['employeeImage']}"
                             : "";
                         return _employeeCard(
                           emp['employeeId'] ?? "", // ✅ pass employeeId also

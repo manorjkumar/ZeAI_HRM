@@ -61,7 +61,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     try {
       final response = await http.get(
-        Uri.parse("https://hrm-backend-knsv.onrender.com/get-employee-name/$employeeId"),
+        Uri.parse("https://zeai-hrm-1.onrender.com/get-employee-name/$employeeId"),
       );
 
       if (response.statusCode == 200) {
@@ -93,7 +93,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
       final year = DateTime.now().year;
       final url =
-          "https://hrm-backend-knsv.onrender.com/apply/leave-balance/$employeeId?year=$year";
+          "https://zeai-hrm-1.onrender.com/apply/leave-balance/$employeeId?year=$year";
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
@@ -129,7 +129,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> fetchPendingCount(String userRole) async {
     try {
       final response = await http.get(
-        Uri.parse("https://hrm-backend-knsv.onrender.com/apply/pending-count?approver=$userRole"),
+        Uri.parse("https://zeai-hrm-1.onrender.com/apply/pending-count?approver=$userRole"),
       );
 
       if (response.statusCode == 200) {
@@ -148,7 +148,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _deleteEmployeeComment(String id) async {
     try {
       final response = await http.delete(
-        Uri.parse("https://hrm-backend-knsv.onrender.com/review-decision/$id"),
+        Uri.parse("https://zeai-hrm-1.onrender.com/review-decision/$id"),
       );
 
       if (response.statusCode == 200) {
@@ -171,7 +171,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _showEmployeeComments() async {
   try {
     final response = await http.get(
-      Uri.parse("https://hrm-backend-knsv.onrender.com/review-decision/feedback?positions=employee,intern"),
+      Uri.parse("https://zeai-hrm-1.onrender.com/review-decision/feedback?positions=employee,intern"),
       headers: {"Accept": "application/json"},
     );
 

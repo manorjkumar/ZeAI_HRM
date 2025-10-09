@@ -82,7 +82,7 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
       return;
     }
 
-    final url = Uri.parse('https://hrm-backend-knsv.onrender.com/reviews');
+    final url = Uri.parse('https://zeai-hrm-1.onrender.com/reviews');
     final reviewerName =
         Provider.of<UserProvider>(context, listen: false).employeeName ??
         'Admin';
@@ -114,7 +114,7 @@ class _PerformanceReviewPageState extends State<PerformanceReviewPage> {
         );
 
         // 🔔 Create notifications
-      final notifUrl = Uri.parse("https://hrm-backend-knsv.onrender.com/notifications");
+      final notifUrl = Uri.parse("https://zeai-hrm-1.onrender.com/notifications");
       String currentMonth = getCurrentMonth();
       final userProvider = Provider.of<UserProvider>(context, listen: false);
        final adminName = userProvider.employeeName ?? 'Admin';
