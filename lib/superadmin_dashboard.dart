@@ -82,7 +82,7 @@ Future<void> fetchEmployeeName() async {
   }
 
   try {
-    final uri = Uri.parse("https://zeai-hrm-1.onrender.com/api/employees/$employeeId");
+    final uri = Uri.parse("http://localhost:5000/api/employees/$employeeId");
     final resp = await http.get(uri);
 
     if (resp.statusCode == 200) {
@@ -117,7 +117,7 @@ Future<void> fetchEmployeeName() async {
 
       final year = DateTime.now().year;
       final url =
-          "https://zeai-hrm-1.onrender.com/apply/leave-balance/$employeeId?year=$year";
+          "http://localhost:5000/apply/leave-balance/$employeeId?year=$year";
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
@@ -153,7 +153,7 @@ Future<void> fetchEmployeeName() async {
    Future<int> fetchPendingCount(String userRole) async {
     try {
       final response = await http.get(
-        Uri.parse("https://zeai-hrm-1.onrender.com/apply/pending-count?approver=$userRole"),
+        Uri.parse("http://localhost:5000/apply/pending-count?approver=$userRole"),
       );
 
       if (response.statusCode == 200) {
@@ -173,7 +173,7 @@ Future<void> fetchEmployeeName() async {
   Future<void> _deleteEmployeeComment(String id) async {
     try {
       final response = await http.delete(
-        Uri.parse("https://zeai-hrm-1.onrender.com/review-decision/$id"),
+        Uri.parse("http://localhost:5000/review-decision/$id"),
       );
 
       if (response.statusCode == 200) {
@@ -198,7 +198,7 @@ Future<void> fetchEmployeeName() async {
   Future<void> _showEmployeeComments() async {
     try {
       final response = await http.get(
-        Uri.parse("https://zeai-hrm-1.onrender.com/review-decision"),
+        Uri.parse("http://localhost:5000/review-decision"),
         headers: {"Accept": "application/json"},
       );
 
@@ -484,7 +484,7 @@ Future<void> fetchEmployeeName() async {
                         try {
                           var request = http.MultipartRequest(
                             'POST',
-                            Uri.parse("https://zeai-hrm-1.onrender.com/api/employees"),
+                            Uri.parse("http://localhost:5000/api/employees"),
                           );
 
                           request.fields['employeeId'] = empId;
@@ -598,7 +598,7 @@ Future<void> fetchEmployeeName() async {
   Future<List<dynamic>> _fetchPendingRequests() async {
     try {
       final response = await http.get(
-        Uri.parse("https://zeai-hrm-1.onrender.com/requests?status=pending"),
+        Uri.parse("http://localhost:5000/requests?status=pending"),
         headers: {"Accept": "application/json"},
       );
       if (response.statusCode == 200) {
@@ -613,7 +613,7 @@ Future<void> fetchEmployeeName() async {
   Future<void> _approveRequest(String requestId) async {
     try {
       final response = await http.post(
-        Uri.parse('https://zeai-hrm-1.onrender.com/requests/$requestId/approve'),
+        Uri.parse('http://localhost:5000/requests/$requestId/approve'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'resolvedBy':
@@ -638,7 +638,7 @@ Future<void> fetchEmployeeName() async {
   Future<void> _declineRequest(String requestId) async {
     try {
       final response = await http.post(
-        Uri.parse('https://zeai-hrm-1.onrender.com/requests/$requestId/decline'),
+        Uri.parse('http://localhost:5000/requests/$requestId/decline'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'resolvedBy':
