@@ -4,7 +4,7 @@ const router = express.Router();
 
 const Leave = require("../models/Leave");
 const LeaveBalance = require("../models/leaveBalance");
-const Employee = require("../models/Employee");
+const Employee = require("../models/employee");
 
 // -------------------- Helpers --------------------
 const normalize = (s = "") => String(s).trim().toLowerCase();
