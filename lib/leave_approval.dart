@@ -16,7 +16,7 @@ class LeaveApprovalPage extends StatefulWidget {
 }
 
 class _LeaveApprovalPageState extends State<LeaveApprovalPage> {
-  final String apiUrl = "https://zeai-hrm-1.onrender.com/apply";
+  final String apiUrl = "http://localhost:5000/apply";
 
   List<dynamic> leaveRequests = [];
   List<dynamic> filteredLeaves = [];
@@ -49,7 +49,7 @@ class _LeaveApprovalPageState extends State<LeaveApprovalPage> {
       final employeeId = userProvider.employeeId ?? "";
 
       String url;
-      if (role == "admin" || role == "founder") {
+      if (role == "admin" || role == "founder"  || role == "hr") {
         url = "$apiUrl/all/by-role/$role";
       } else {
         url = "$apiUrl/all?employeeId=$employeeId";

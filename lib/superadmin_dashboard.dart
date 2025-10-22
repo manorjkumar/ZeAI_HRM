@@ -25,8 +25,6 @@ import 'leave_approval.dart';
 //import 'adminperformance.dart'; // for Performance Review
 import 'superadmin_performance.dart';// ✅ for SuperadminPerformancePageReview
 import 'employee_list.dart';
-import 'package:intl/intl.dart';
-
 
 class SuperAdminDashboard extends StatefulWidget {
   const SuperAdminDashboard({super.key});
@@ -72,7 +70,7 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
   }
 
   /// Fetch employee name from backend.
-  /// Attempts the common `/api/employees/:id` route first, then falls back to `/get-employee-name/:id`.
+  /// Attempts the common /api/employees/:id route first, then falls back to /get-employee-name/:id.
   /// Fetch employee name from backend (single endpoint now).
 Future<void> fetchEmployeeName() async {
   final employeeId =
@@ -84,7 +82,7 @@ Future<void> fetchEmployeeName() async {
   }
 
   try {
-    final uri = Uri.parse("https://zeai-hrm-1.onrender.com/api/employees/$employeeId");
+    final uri = Uri.parse("http://localhost:5000/api/employees/$employeeId");
     final resp = await http.get(uri);
 
     if (resp.statusCode == 200) {
@@ -119,7 +117,7 @@ Future<void> fetchEmployeeName() async {
 
       final year = DateTime.now().year;
       final url =
-          "https://zeai-hrm-1.onrender.com/apply/leave-balance/$employeeId?year=$year";
+          "http://localhost:5000/apply/leave-balance/$employeeId?year=$year";
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
@@ -155,7 +153,7 @@ Future<void> fetchEmployeeName() async {
    Future<int> fetchPendingCount(String userRole) async {
     try {
       final response = await http.get(
-        Uri.parse("https://zeai-hrm-1.onrender.com/apply/pending-count?approver=$userRole"),
+        Uri.parse("http://localhost:5000/apply/pending-count?approver=$userRole"),
       );
 
       if (response.statusCode == 200) {
@@ -175,12 +173,12 @@ Future<void> fetchEmployeeName() async {
   Future<void> _deleteEmployeeComment(String id) async {
     try {
       final response = await http.delete(
-        Uri.parse("https://zeai-hrm-1.onrender.com/review-decision/$id"),
+        Uri.parse("http://localhost:5000/review-decision/$id"),
       );
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("🗑️ Comment deleted successfully")),
+          const SnackBar(content: Text("🗑 Comment deleted successfully")),
         );
         Navigator.of(context).pop(); // close current dialog
         await _showEmployeeComments(); // refresh dialog
@@ -200,7 +198,7 @@ Future<void> fetchEmployeeName() async {
   Future<void> _showEmployeeComments() async {
     try {
       final response = await http.get(
-        Uri.parse("https://zeai-hrm-1.onrender.com/review-decision"),
+        Uri.parse("http://localhost:5000/review-decision"),
         headers: {"Accept": "application/json"},
       );
 
@@ -486,7 +484,7 @@ Future<void> fetchEmployeeName() async {
                         try {
                           var request = http.MultipartRequest(
                             'POST',
-                            Uri.parse("https://zeai-hrm-1.onrender.com/api/employees"),
+                            Uri.parse("http://localhost:5000/api/employees"),
                           );
 
                           request.fields['employeeId'] = empId;
@@ -579,7 +577,7 @@ Future<void> fetchEmployeeName() async {
 
 
 
-  /*// Helper: format date in YYYY-MM-DD hh:mm with zero padding
+  /// Helper: format date in YYYY-MM-DD hh:mm with zero padding
   String _formatDate(dynamic iso) {
     if (iso == null) return 'N/A';
     try {
@@ -594,24 +592,13 @@ Future<void> fetchEmployeeName() async {
     } catch (_) {
       return iso.toString();
     }
-  }*/
-  String _formatDate(dynamic dateStr) {
-  if (dateStr == null) return '';
-  try {
-    final parsed = DateTime.tryParse(dateStr.toString());
-    if (parsed == null) return dateStr.toString();
-    return DateFormat('yyyy-MM-dd hh:mm a').format(parsed.toLocal());
-  } catch (e) {
-    return dateStr.toString();
   }
-}
-
 
   /// 🔹 Fetch pending change requests
   Future<List<dynamic>> _fetchPendingRequests() async {
     try {
       final response = await http.get(
-        Uri.parse("https://zeai-hrm-1.onrender.com/requests?status=pending"),
+        Uri.parse("http://localhost:5000/requests?status=pending"),
         headers: {"Accept": "application/json"},
       );
       if (response.statusCode == 200) {
@@ -626,7 +613,7 @@ Future<void> fetchEmployeeName() async {
   Future<void> _approveRequest(String requestId) async {
     try {
       final response = await http.post(
-        Uri.parse('https://zeai-hrm-1.onrender.com/requests/$requestId/approve'),
+        Uri.parse('http://localhost:5000/requests/$requestId/approve'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'resolvedBy':
@@ -651,7 +638,7 @@ Future<void> fetchEmployeeName() async {
   Future<void> _declineRequest(String requestId) async {
     try {
       final response = await http.post(
-        Uri.parse('https://zeai-hrm-1.onrender.com/requests/$requestId/decline'),
+        Uri.parse('http://localhost:5000/requests/$requestId/decline'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'resolvedBy':
@@ -765,7 +752,6 @@ Future<void> fetchEmployeeName() async {
     if (_isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
     if (_error != null) {
       return Scaffold(
         body: Center(
@@ -806,6 +792,15 @@ Future<void> fetchEmployeeName() async {
   }
 
   Widget _buildQuickActions(BuildContext context) {
+    final role = Provider.of<UserProvider>(context, listen: false).position?.toLowerCase() ?? "founder";
+    // final approverRole = (role == "hr") ? "hr" : "founder";
+    final approverRole = 
+    (role == "superadmin") ? "superadmin" :
+    (role == "hr") ? "hr" :
+    (role == "founder") ? "founder" :
+    (role == "admin") ? "admin" :
+    "employee";
+
     return Center(
       child: Wrap(
         spacing: 90,
@@ -856,8 +851,9 @@ Future<void> fetchEmployeeName() async {
               MaterialPageRoute(builder: (_) => const EmployeeListScreen()),
             );
           }),
+      
           FutureBuilder<int>(
-            future: fetchPendingCount("admin"),
+            future: fetchPendingCount(approverRole),
             builder: (context, snapshot) {
               final count = snapshot.data ?? 0;
               return Stack(
@@ -868,7 +864,7 @@ Future<void> fetchEmployeeName() async {
                       context,
                       MaterialPageRoute(
                         builder: (context) =>
-                            const LeaveApprovalPage(userRole: "admin"),
+                            LeaveApprovalPage(userRole: approverRole),
                       ),
                     );
                   }),

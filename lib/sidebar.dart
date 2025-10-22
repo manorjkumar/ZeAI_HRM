@@ -251,7 +251,7 @@ Widget _buildSidebar(BuildContext context) {
   // Select Dashboard based on role
   Widget getDashboard() {
     if (role == "Admin") return const AdminDashboard();
-    if (role == "Founder") return const SuperAdminDashboard();
+    if (role == "Founder"||role == "HR") return const SuperAdminDashboard();
     return const EmployeeDashboard();
   }
 
@@ -298,7 +298,7 @@ Widget _buildSidebar(BuildContext context) {
               Icons.notifications,
               'Notifications',
               context,
-              (role == "Admin" || role == "Founder")
+              (role == "Admin" || role == "Founder"||role == "HR")
                   ? AdminNotificationsPage(empId: userProvider.employeeId ?? '')
                   : EmployeeNotificationsPage(
                     empId: userProvider.employeeId ?? '',

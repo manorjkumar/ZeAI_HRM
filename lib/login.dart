@@ -102,7 +102,7 @@ class _LoginPageState extends State<LoginPage> {
               MaterialPageRoute(
                   builder: (context) => const admin.AdminDashboard()),
             );
-          } else if (position == "Founder") {
+          } else if (position == "Founder"||position == "HR") {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
