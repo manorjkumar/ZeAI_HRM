@@ -19,6 +19,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   bool isLogoutDisabled = true;
   bool isBreakActive = false;
   bool attendanceSubmitted = false;
+  bool isLoginReasonSubmitted = false;
+  bool isLogoutReasonSubmitted = false;
+  bool isBreakLimitReached = false;
+
+
 
   String loginTime = "";
   String logoutTime = "";
@@ -47,47 +52,67 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return DateFormat('dd-MM-yyyy').format(DateTime.now());
   }
 
-  Future<void> fetchLatestStatus() async {
-    final employeeId =
-        Provider.of<UserProvider>(context, listen: false).employeeId ?? '';
-    var url = Uri.parse(
-        'https://zeai-hrm-1.onrender.com/attendance/attendance/status/$employeeId');   //CHECK
+ Future<void> fetchLatestStatus() async {
+  final employeeId =
+      Provider.of<UserProvider>(context, listen: false).employeeId ?? '';
+  var url = Uri.parse(
+      'https://zeai-hrm-1.onrender.com/attendance/attendance/status/$employeeId');
 
-    try {
-      var response = await http.get(url);
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+  try {
+    var response = await http.get(url);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
 
-        final todayDate = getCurrentDate();
-        final recordDate = data['date'] ?? "";
+      final todayDate = getCurrentDate();
+      final recordDate = data['date'] ?? "";
 
-        if (recordDate != todayDate) {
-          setState(() {
-            loginTime = "";
-            logoutTime = "";
-            isBreakActive = false;
-            isLoginDisabled = false;
-            isLogoutDisabled = true;
-            attendanceSubmitted = false;
-          });
-          return;
-        }
-
+      if (recordDate != todayDate) {
         setState(() {
-          loginTime = data['loginTime'] ?? "";
-          logoutTime = data['logoutTime'] ?? "";
-          isBreakActive = data['status'] == "Break";
-          isLoginDisabled =
-              data['status'] == "Login" || data['status'] == "Break";
-          isLogoutDisabled =
-              data['status'] == "Logout" || data['status'] == "None";
-          attendanceSubmitted = data['status'] != "None";
+          loginTime = "";
+          logoutTime = "";
+          isBreakActive = false;
+          isLoginDisabled = false;
+          isLogoutDisabled = true;
+          attendanceSubmitted = false;
+          isBreakLimitReached = false; // ✅ reset for new day
+        });
+        return;
+      }
+
+      setState(() {
+        loginTime = data['loginTime'] ?? "";
+        logoutTime = data['logoutTime'] ?? "";
+        loginReason = data['loginReason'] ?? "";
+        logoutReason = data['logoutReason'] ?? "";
+        loginReasonController.text = loginReason;
+        logoutReasonController.text = logoutReason;
+
+        // ✅ Lock fields if reasons already exist
+        isLoginReasonSubmitted = loginReason.isNotEmpty && loginReason != "-";
+        isLogoutReasonSubmitted = logoutReason.isNotEmpty && logoutReason != "-";
+
+        isBreakActive = data['status'] == "Break";
+        isLoginDisabled = data['status'] == "Login" || data['status'] == "Break";
+        isLogoutDisabled = data['status'] == "Logout" || data['status'] == "None";
+        attendanceSubmitted = data['status'] != "None";
+      });
+
+      // ✅ Check if today's total break reached 60 mins
+      final breakTime = data['breakTime'] ?? '';
+      if (breakTime.contains('(Total:') && breakTime.contains('60')) {
+        setState(() {
+          isBreakLimitReached = true;
+        });
+      } else {
+        setState(() {
+          isBreakLimitReached = false;
         });
       }
-    } catch (e) {
-      print('❌ Error fetching status: $e');
     }
+  } catch (e) {
+    print('❌ Error fetching status: $e');
   }
+}
 
   // ✅ POST: Save new login
   Future<void> postAttendanceData() async {
@@ -170,13 +195,19 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         List<dynamic> data = jsonDecode(response.body);
         setState(() {
           attendanceData = data.take(5).map<Map<String, String>>((item) {
+          // ✅ Show last break with duration (from backend)
+          String breakTime = item['breakTime'] ?? '-';
+          String lastBreak = breakTime.contains(",")
+              ? breakTime.split(",").last.trim() // ✅ include duration
+              : breakTime.trim();
+
             return {
-              'date': item['date'] ?? '',
-              'status': item['status'] ?? '-',
-              'break': item['breakTime'] ?? '-',
-              'login': item['loginTime'] ?? '',
-              'logout': item['logoutTime'] ?? '',
-            };
+            'date': item['date'] ?? '',
+            'status': item['status'] ?? '-',
+           'break': lastBreak, // show last break with duration
+            'login': item['loginTime'] ?? '',
+            'logout': item['logoutTime'] ?? '',
+          };
           }).toList();
         });
       }
@@ -186,51 +217,102 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   // --- Dialogs ---
-  Future<void> showLoginReasonDialog() async {
-    await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Reason for Early/Late Login"),
-          content: TextField(
-            controller: loginReasonController,
-            decoration: const InputDecoration(hintText: "Enter reason"),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text("Submit"),
-            ),
-          ],
-        );
-      },
-    );
-  }
+Future<bool> showLoginReasonDialog() async {
+  // Store original value in case user cancels
+  final originalReason = loginReasonController.text;
 
-  Future<void> showLogoutReasonDialog() async {
-    await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Reason for Early/Late Logout"),
-          content: TextField(
-            controller: logoutReasonController,
-            decoration: const InputDecoration(hintText: "Enter reason"),
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false, // ❌ cannot tap outside
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text("Reason for Early/Late Login"),
+        content: TextField(
+          controller: loginReasonController,
+          decoration: const InputDecoration(hintText: "Enter reason"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              if (loginReasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("⚠ Please enter a reason before submitting."),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              loginReason = loginReasonController.text.trim();
+              isLoginReasonSubmitted = true;
+              Navigator.of(context).pop(true); // ✅ Submit
+            },
+            child: const Text("Submit"),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text("Submit"),
-            ),
-          ],
-        );
-      },
-    );
-  }
+          TextButton(
+            onPressed: () {
+              // ❌ Cancel → revert text field to original
+              loginReasonController.text = originalReason;
+              Navigator.of(context).pop(false);
+            },
+            child: const Text("Cancel"),
+          ),
+        ],
+      );
+    },
+  );
+
+  return result ?? false; // true if submitted, false if cancelled
+}
+
+
+ Future<bool> showLogoutReasonDialog() async {
+  final originalReason = logoutReasonController.text;
+
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text("Reason for Early/Late Logout"),
+        content: TextField(
+          controller: logoutReasonController,
+          decoration: const InputDecoration(hintText: "Enter reason"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              if (logoutReasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("⚠ Please enter a reason before submitting."),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              logoutReason = logoutReasonController.text.trim();
+              isLogoutReasonSubmitted = true;
+              Navigator.of(context).pop(true);
+            },
+            child: const Text("Submit"),
+          ),
+          TextButton(
+            onPressed: () {
+              // ❌ Cancel → revert text field to original
+              logoutReasonController.text = originalReason;
+              Navigator.of(context).pop(false);
+            },
+            child: const Text("Cancel"),
+          ),
+        ],
+      );
+    },
+  );
+
+  return result ?? false;
+}
+
 
   void showAlreadyLoggedOutDialog() {
     showDialog(
@@ -248,92 +330,195 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
+
+
+
   // --- Handlers ---
   void handleLogin() async {
-    if (logoutTime.isNotEmpty) {
-      showAlreadyLoggedOutDialog();
-      return;
-    }
+  if (logoutTime.isNotEmpty) {
+    showAlreadyLoggedOutDialog();
+    return;
+  }
 
-    String timeNow = getCurrentTime();
-    setState(() {
-      loginTime = timeNow;
-      isLoginDisabled = true;
-      isLogoutDisabled = false;
-    });
+  DateTime now = DateTime.now();
+  DateTime start = DateTime(now.year, now.month, now.day, 8, 55);
+  DateTime end = DateTime(now.year, now.month, now.day, 9, 05);
 
-    DateTime now = DateTime.now();
-    DateTime start = DateTime(now.year, now.month, now.day, 9, 0);
-    DateTime end = DateTime(now.year, now.month, now.day, 9, 10);
+  // Check if outside allowed login time → require reason
+  if (now.isBefore(start) || now.isAfter(end)) {
+    bool submitted = await showLoginReasonDialog();
+    if (!submitted) return; // ❌ stop if user didn’t click Submit
+  }
 
-    if (now.isBefore(start) || now.isAfter(end)) {
-      await showLoginReasonDialog();
-    }
-
+  String timeNow = getCurrentTime();
+  setState(() {
+    loginTime = timeNow;
+    isLoginDisabled = true;
+    isLogoutDisabled = false;
     loginReason = loginReasonController.text.trim();
-    await postAttendanceData();
+  });
+
+  await postAttendanceData();
+
+  setState(() {
+    loginReasonController.text = loginReason;
+  });
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("✅ Logged in successfully!"),
+      backgroundColor: Colors.green,
+    ),
+  );
+}
+
+
+//Handle Break
+ void handleBreak() async {
+  if (logoutTime.isNotEmpty) {
+    showAlreadyLoggedOutDialog();
+    return;
   }
 
-  void handleBreak() {
-    if (logoutTime.isNotEmpty) {
-      showAlreadyLoggedOutDialog();
-      return;
-    }
+  String timeNow = getCurrentTime();
+  final employeeId =
+      Provider.of<UserProvider>(context, listen: false).employeeId ?? '';
+  var url = Uri.parse(
+      'https://zeai-hrm-1.onrender.com/attendance/attendance/update/$employeeId');
 
-    String timeNow = getCurrentTime();
+  if (!isBreakActive) {
+    // ✅ Start Break (set status = Break)
     setState(() {
-      if (!isBreakActive) {
-        breakStart = timeNow;
-        isBreakActive = true;
-      } else {
-        breakEnd = timeNow;
-        isBreakActive = false;
-        loginReason = loginReasonController.text.trim();
-        logoutReason = logoutReasonController.text.trim();
-        if (attendanceSubmitted) updateAttendanceData();
-      }
+      breakStart = timeNow;
+      isBreakActive = true;
     });
-  }
 
-  void handleLogout() async {
-    if (logoutTime.isNotEmpty) {
-      showAlreadyLoggedOutDialog();
-      return;
+    try {
+      var body = jsonEncode({
+        'date': getCurrentDate(),
+        'breakTime': '-', // No end time yet
+        'status': 'Break', // ✅ Persist as Break
+      });
+
+      await http.put(url,
+          body: body, headers: {'Content-Type': 'application/json'});
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("⏸ Break started at $breakStart"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      print('❌ Error starting break: $e');
     }
-
-    String timeNow = getCurrentTime();
+  } else {
+    // ✅ End Break
     setState(() {
-      logoutTime = timeNow;
-      isLogoutDisabled = true;
-      isLoginDisabled = true;
+      breakEnd = timeNow;
       isBreakActive = false;
     });
 
-    DateTime now = DateTime.now();
-    DateTime logoutStart = DateTime(now.year, now.month, now.day, 17, 0);
-    DateTime logoutEnd = DateTime(now.year, now.month, now.day, 17, 10);
+    try {
+      var body = jsonEncode({
+        'date': getCurrentDate(),
+        'breakTime': "$breakStart to $breakEnd",
+        'loginReason': loginReasonController.text.trim(),
+        'logoutReason': logoutReasonController.text.trim(),
+        'status': 'Login', // Back to login
+      });
 
-    if (now.isBefore(logoutStart) || now.isAfter(logoutEnd)) {
-      await showLogoutReasonDialog();
-    }
+      var response = await http.put(url,
+          body: body, headers: {'Content-Type': 'application/json'});
 
-    loginReason = loginReasonController.text.trim();
-    logoutReason = logoutReasonController.text.trim();
+     if (response.statusCode == 400) {
+  final data = jsonDecode(response.body);
+  if (data['limitReached'] == true) {
+    setState(() {
+      isBreakLimitReached = true;  // ✅ permanently disable further breaks
+      isBreakActive = false;       // ensure button changes to Breakin but disabled
+    });
 
-    if (attendanceSubmitted) {
-      await updateAttendanceData(isLogout: true);
-    } else {
-      await postAttendanceData();
-      await updateAttendanceData(isLogout: true);
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("✅ Logged out successfully!"),
-        backgroundColor: Colors.green,
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Break Limit Reached"),
+        content: const Text(
+            "⚠ You have already taken the maximum 60-minute break limit for today."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
+          ),
+        ],
       ),
     );
+    return;
   }
+   }
+
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("▶ Break ended at $breakEnd"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        fetchAttendanceHistory();
+        fetchLatestStatus(); // ✅ refresh UI after update
+      }
+    } catch (e) {
+      print('❌ Error ending break: $e');
+    }
+  }
+}
+
+
+
+
+ void handleLogout() async {
+  if (logoutTime.isNotEmpty) {
+    showAlreadyLoggedOutDialog();
+    return;
+  }
+
+  DateTime now = DateTime.now();
+  DateTime logoutStart = DateTime(now.year, now.month, now.day, 17, 00);
+  DateTime logoutEnd = DateTime(now.year, now.month, now.day, 17, 10);
+
+  // Check if outside normal logout time → ask for reason
+  if (now.isBefore(logoutStart) || now.isAfter(logoutEnd)) {
+    bool reasonSubmitted = await showLogoutReasonDialog();
+    if (!reasonSubmitted) return; // ❌ Stop if not submitted
+
+  }
+
+  String timeNow = getCurrentTime();
+  setState(() {
+    logoutTime = timeNow;
+    isLogoutDisabled = true;
+    isLoginDisabled = true;
+    isBreakActive = false;
+    loginReason = loginReasonController.text.trim();
+    logoutReason = logoutReasonController.text.trim();
+  });
+
+  if (attendanceSubmitted) {
+    await updateAttendanceData(isLogout: true);
+  } else {
+    await postAttendanceData();
+    await updateAttendanceData(isLogout: true);
+  }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("✅ Logged out successfully!"),
+      backgroundColor: Colors.green,
+    ),
+  );
+}
+
 
   @override
   void dispose() {
@@ -359,12 +544,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       ElevatedButton.styleFrom(backgroundColor: Colors.green),
                   child: const Text("LOGIN"),
                 ),
-                ElevatedButton(
-                  onPressed: isLoginDisabled ? handleBreak : null,
-                  style:
-                      ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-                  child: Text(isBreakActive ? "Break Off" : "Breakin"),
-                ),
+               ElevatedButton(
+             onPressed: (isLoginDisabled && !isBreakLimitReached) ? handleBreak : null,
+                 style: ElevatedButton.styleFrom(
+              backgroundColor: isBreakLimitReached ? Colors.grey : Colors.orange,
+              ),
+                 child: Text(isBreakActive
+                    ? "Break Off"
+                   : isBreakLimitReached
+                   ? "Break Limit Reached"
+                    : "Breakin"),
+                   ),
+
                 ElevatedButton(
                   onPressed: !isLogoutDisabled ? handleLogout : null,
                   style:
@@ -379,32 +570,46 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               children: [
                 Container(
                   width: 300,
+                  height: 90, 
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.grey[200],
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: TextField(
-                    controller: loginReasonController,
-                    decoration: const InputDecoration(
+                child: IgnorePointer(
+                 child: TextField(
+                  controller: loginReasonController,
+                    readOnly: true,
+                   maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                      decoration: const InputDecoration(
                       labelText: "Reason for Early/Late Login 👋",
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
+                       border: OutlineInputBorder(),
+                            ),
+                     ),
+                     ),
+                     ),
                 Container(
                   width: 300,
+                  height: 90,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: Colors.grey[200],
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: TextField(
-                    controller: logoutReasonController,
-                    decoration: const InputDecoration(
-                      labelText: "Reason for Early/Late Logout 👋",
-                      border: OutlineInputBorder(),
-                    ),
+                  child: IgnorePointer(
+                    child: TextField(
+                      controller: logoutReasonController,
+                        readOnly: true,
+                        maxLines: null,
+                         expands: true,
+                         textAlignVertical: TextAlignVertical.top,
+                      decoration: const InputDecoration(
+                         labelText: "Reason for Early/Late Logout 👋",
+                         border: OutlineInputBorder(),
+                       ),
+                   ),
                   ),
                 ),
               ],

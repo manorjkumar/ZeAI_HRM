@@ -71,7 +71,7 @@ router.post("/attendance/mark/:employeeId", async (req, res) => {
   }
 });
 
-// ✅ PUT: Update attendance (Logout / Break)
+// ✅ PUT: Update attendance (Logout / Break) with total 60-min limit
 router.put("/attendance/update/:employeeId", async (req, res) => {
   const { employeeId } = req.params;
   let { date, logoutTime, breakTime, loginReason, logoutReason, status } = req.body;
@@ -79,17 +79,85 @@ router.put("/attendance/update/:employeeId", async (req, res) => {
   try {
     date = formatDateToDDMMYYYY(date || undefined);
 
+    const todayRecord = await Attendance.findOne({ employeeId, date });
+    if (!todayRecord) {
+      return res.status(404).json({ message: "❌ Attendance not found" });
+    }
+
+    let breakArray = [];
+
+    // ✅ Existing breaks
+    if (todayRecord.breakTime && todayRecord.breakTime !== "-") {
+      breakArray = todayRecord.breakTime
+        .split(",")
+        .map((b) => b.trim().split(" (")[0]); // remove durations
+    }
+
+    // ✅ Add new break if provided
+    if (breakTime && breakTime.includes("to")) {
+      breakArray.push(breakTime.trim());
+    }
+
+    // ✅ Safe time parsing
+    const parseTime = (timeStr) => {
+      if (!timeStr) return 0;
+      timeStr = timeStr.trim();
+
+      // Extract time and modifier (AM/PM)
+      const parts = timeStr.split(" ");
+      const timePart = parts[0];
+      const modifier = parts[1] ? parts[1].toUpperCase() : null;
+
+      // Handle hh:mm:ss or hh:mm formats
+      const [h, m, s] = timePart.split(":").map(Number);
+      let hours = h || 0;
+      let minutes = m || 0;
+
+      if (modifier === "PM" && hours !== 12) hours += 12;
+      if (modifier === "AM" && hours === 12) hours = 0;
+
+      return hours * 60 + minutes; // convert to minutes
+    };
+
+    // ✅ Calculate total break duration
+    let totalMinutes = 0;
+    const formattedBreaks = breakArray.map((b) => {
+      const [start, end] = b.split("to").map((t) => t.trim());
+      const startMinutes = parseTime(start);
+      const endMinutes = parseTime(end);
+
+      const diff = Math.max(endMinutes - startMinutes, 0);
+      totalMinutes += diff;
+
+      return `${start} to ${end} (${diff} mins)`;
+    });
+
+    // ✅ Check total break limit
+    if (totalMinutes > 60) {
+      return res.status(400).json({
+        message: "⚠ Total break time exceeded 60 minutes.",
+        totalMinutes,
+        limitReached: true,
+      });
+    }
+
+    const finalBreakTime =
+      formattedBreaks.join(", ") + ` (Total: ${totalMinutes} mins)`;
+
+    // ✅ Prepare update fields
     let updateFields = {
-      ...(breakTime && { breakTime }),
+      breakTime: finalBreakTime,
       ...(loginReason && { loginReason }),
       ...(logoutReason && { logoutReason }),
     };
 
+    // ✅ Update logout or break status
     if (logoutTime) {
       updateFields.logoutTime = logoutTime;
       updateFields.status = "Logout";
     } else if (status) {
-      updateFields.status = status;
+      // ✅ Preserve Break status properly
+      updateFields.status = status === "Break" ? "Break" : status;
     }
 
     const updatedAttendance = await Attendance.findOneAndUpdate(
@@ -98,11 +166,12 @@ router.put("/attendance/update/:employeeId", async (req, res) => {
       { new: true }
     );
 
-    if (!updatedAttendance) {
-      return res.status(404).json({ message: "❌ Attendance not found" });
-    }
-
-    res.status(200).json({ message: "✅ Attendance updated successfully", updatedAttendance });
+    res.status(200).json({
+      message: "✅ Attendance updated successfully",
+      updatedAttendance,
+      totalMinutes,
+      limitReached: false,
+    });
   } catch (error) {
     console.error("❌ Error updating attendance:", error);
     res.status(500).json({ message: "Server Error" });
@@ -140,8 +209,12 @@ router.get("/attendance/status/:employeeId", async (req, res) => {
       status: todayRecord.status,
       loginTime: todayRecord.loginTime,
       logoutTime: todayRecord.logoutTime,
+      loginReason: todayRecord.loginReason,
+      logoutReason: todayRecord.logoutReason,
+      breakTime: todayRecord.breakTime,
       date: todayRecord.date,
     });
+
   } catch (error) {
     console.error("❌ Error fetching status:", error);
     res.status(500).json({ message: "Server Error" });
