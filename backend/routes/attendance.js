@@ -9,7 +9,7 @@ function formatDateToDDMMYYYY(dateInput) {
     const day = String(today.getDate()).padStart(2, "0");
     const month = String(today.getMonth() + 1).padStart(2, "0");
     const year = today.getFullYear();
-    return `${day}-${month}-${year}`;
+    return '${day}-${month}-${year}';
   }
 
   if (typeof dateInput === "string" && /^\d{2}-\d{2}-\d{4}$/.test(dateInput)) {
@@ -20,7 +20,7 @@ function formatDateToDDMMYYYY(dateInput) {
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
-  return `${day}-${month}-${year}`;
+  return '${day}-${month}-${year}';
 }
 
 // ✅ POST: Save attendance (Login)
@@ -136,7 +136,7 @@ router.get("/attendance/status/:employeeId", async (req, res) => {
       return res.json({ status: "None", date: todayDate });
     }
 
-      res.json({
+    res.json({
   status: todayRecord.status,
   loginTime: todayRecord.loginTime,
   logoutTime: todayRecord.logoutTime,
@@ -145,6 +145,7 @@ router.get("/attendance/status/:employeeId", async (req, res) => {
   breakTime: todayRecord.breakTime,
   date: todayRecord.date,
 });
+
   } catch (error) {
     console.error("❌ Error fetching status:", error);
     res.status(500).json({ message: "Server Error" });

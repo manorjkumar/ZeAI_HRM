@@ -197,59 +197,102 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   // --- Dialogs ---
-  Future<void> showLoginReasonDialog() async {
-    await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Reason for Early/Late Login"),
-          content: TextField(
-            controller: loginReasonController,
-            decoration: const InputDecoration(hintText: "Enter reason"),
-          ),
-          actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                loginReason = loginReasonController.text.trim();
-                isLoginReasonSubmitted = true; // ✅ lock editing
-              });
-              Navigator.of(context).pop();
-            },
-            child: const Text("Submit"),
-          ),
-        ],
-        );
-      },
-    );
-  }
+Future<bool> showLoginReasonDialog() async {
+  // Store original value in case user cancels
+  final originalReason = loginReasonController.text;
 
-  Future<void> showLogoutReasonDialog() async {
-    await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text("Reason for Early/Late Logout"),
-          content: TextField(
-            controller: logoutReasonController,
-            decoration: const InputDecoration(hintText: "Enter reason"),
-          ),
-          actions: [
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false, // ❌ cannot tap outside
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text("Reason for Early/Late Login"),
+        content: TextField(
+          controller: loginReasonController,
+          decoration: const InputDecoration(hintText: "Enter reason"),
+        ),
+        actions: [
           TextButton(
             onPressed: () {
-              setState(() {
-                logoutReason = logoutReasonController.text.trim();
-                isLogoutReasonSubmitted = true; // ✅ lock editing
-              });
-              Navigator.of(context).pop();
+              if (loginReasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("⚠ Please enter a reason before submitting."),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              loginReason = loginReasonController.text.trim();
+              isLoginReasonSubmitted = true;
+              Navigator.of(context).pop(true); // ✅ Submit
             },
             child: const Text("Submit"),
           ),
+          TextButton(
+            onPressed: () {
+              // ❌ Cancel → revert text field to original
+              loginReasonController.text = originalReason;
+              Navigator.of(context).pop(false);
+            },
+            child: const Text("Cancel"),
+          ),
         ],
-        );
-      },
-    );
-  }
+      );
+    },
+  );
+
+  return result ?? false; // true if submitted, false if cancelled
+}
+
+
+ Future<bool> showLogoutReasonDialog() async {
+  final originalReason = logoutReasonController.text;
+
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text("Reason for Early/Late Logout"),
+        content: TextField(
+          controller: logoutReasonController,
+          decoration: const InputDecoration(hintText: "Enter reason"),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              if (logoutReasonController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("⚠ Please enter a reason before submitting."),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+                return;
+              }
+              logoutReason = logoutReasonController.text.trim();
+              isLogoutReasonSubmitted = true;
+              Navigator.of(context).pop(true);
+            },
+            child: const Text("Submit"),
+          ),
+          TextButton(
+            onPressed: () {
+              // ❌ Cancel → revert text field to original
+              logoutReasonController.text = originalReason;
+              Navigator.of(context).pop(false);
+            },
+            child: const Text("Cancel"),
+          ),
+        ],
+      );
+    },
+  );
+
+  return result ?? false;
+}
+
 
   void showAlreadyLoggedOutDialog() {
     showDialog(
@@ -267,36 +310,49 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     );
   }
 
+
+
+
   // --- Handlers ---
   void handleLogin() async {
-    if (logoutTime.isNotEmpty) {
-      showAlreadyLoggedOutDialog();
-      return;
-    }
-
-    String timeNow = getCurrentTime();
-    setState(() {
-      loginTime = timeNow;
-      isLoginDisabled = true;
-      isLogoutDisabled = false;
-    });
-
-    DateTime now = DateTime.now();
-    DateTime start = DateTime(now.year, now.month, now.day, 9, 0);
-    DateTime end = DateTime(now.year, now.month, now.day, 9, 10);
-
-    if (now.isBefore(start) || now.isAfter(end)) {
-      await showLoginReasonDialog();
-    }
-
-    loginReason = loginReasonController.text.trim();
-    await postAttendanceData();
-
-     setState(() {
-      loginReasonController.text = loginReason;
-      });
-
+  if (logoutTime.isNotEmpty) {
+    showAlreadyLoggedOutDialog();
+    return;
   }
+
+  DateTime now = DateTime.now();
+  DateTime start = DateTime(now.year, now.month, now.day, 8, 55);
+  DateTime end = DateTime(now.year, now.month, now.day, 9, 05);
+
+  // Check if outside allowed login time → require reason
+  if (now.isBefore(start) || now.isAfter(end)) {
+    bool submitted = await showLoginReasonDialog();
+    if (!submitted) return; // ❌ stop if user didn’t click Submit
+  }
+
+  String timeNow = getCurrentTime();
+  setState(() {
+    loginTime = timeNow;
+    isLoginDisabled = true;
+    isLogoutDisabled = false;
+    loginReason = loginReasonController.text.trim();
+  });
+
+  await postAttendanceData();
+
+  setState(() {
+    loginReasonController.text = loginReason;
+  });
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("✅ Logged in successfully!"),
+      backgroundColor: Colors.green,
+    ),
+  );
+}
+
+
 
   void handleBreak() {
     if (logoutTime.isNotEmpty) {
@@ -319,50 +375,48 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
   }
 
-  void handleLogout() async {
-    if (logoutTime.isNotEmpty) {
-      showAlreadyLoggedOutDialog();
-      return;
-    }
+ void handleLogout() async {
+  if (logoutTime.isNotEmpty) {
+    showAlreadyLoggedOutDialog();
+    return;
+  }
 
-    String timeNow = getCurrentTime();
-    setState(() {
-      logoutTime = timeNow;
-      isLogoutDisabled = true;
-      isLoginDisabled = true;
-      isBreakActive = false;
-    });
+  DateTime now = DateTime.now();
+  DateTime logoutStart = DateTime(now.year, now.month, now.day, 17, 00);
+  DateTime logoutEnd = DateTime(now.year, now.month, now.day, 17, 10);
 
-    DateTime now = DateTime.now();
-    DateTime logoutStart = DateTime(now.year, now.month, now.day, 17, 0);
-    DateTime logoutEnd = DateTime(now.year, now.month, now.day, 17, 10);
+  // Check if outside normal logout time → ask for reason
+  if (now.isBefore(logoutStart) || now.isAfter(logoutEnd)) {
+    bool reasonSubmitted = await showLogoutReasonDialog();
+    if (!reasonSubmitted) return; // ❌ Stop if not submitted
 
-    if (now.isBefore(logoutStart) || now.isAfter(logoutEnd)) {
-      await showLogoutReasonDialog();
-    }
+  }
 
+  String timeNow = getCurrentTime();
+  setState(() {
+    logoutTime = timeNow;
+    isLogoutDisabled = true;
+    isLoginDisabled = true;
+    isBreakActive = false;
     loginReason = loginReasonController.text.trim();
     logoutReason = logoutReasonController.text.trim();
+  });
 
-    if (attendanceSubmitted) {
-      await updateAttendanceData(isLogout: true);
-    } else {
-      await postAttendanceData();
-      await updateAttendanceData(isLogout: true);
-    }
-    // ✅ Keep both comments visible after logout
-    setState(() {
-      loginReasonController.text = loginReason;
-      logoutReasonController.text = logoutReason;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("✅ Logged out successfully!"),
-        backgroundColor: Colors.green,
-      ),
-    );
+  if (attendanceSubmitted) {
+    await updateAttendanceData(isLogout: true);
+  } else {
+    await postAttendanceData();
+    await updateAttendanceData(isLogout: true);
   }
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text("✅ Logged out successfully!"),
+      backgroundColor: Colors.green,
+    ),
+  );
+}
+
 
   @override
   void dispose() {
@@ -414,18 +468,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     color: Colors.grey[200],
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: TextField(
-                    controller: loginReasonController,
-                    readOnly: isLoginReasonSubmitted, // ✅ Non-editable after submit
-                      maxLines: null, // ✅ allow wrapping inside box
-                      expands: true,  // ✅ fill container height
-                      textAlignVertical: TextAlignVertical.top,
-                    decoration: const InputDecoration(
+                child: IgnorePointer(
+                 child: TextField(
+                  controller: loginReasonController,
+                    readOnly: true,
+                   maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                      decoration: const InputDecoration(
                       labelText: "Reason for Early/Late Login 👋",
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
+                       border: OutlineInputBorder(),
+                            ),
+                     ),
+                     ),
+                     ),
                 Container(
                   width: 300,
                   height: 90,
@@ -434,16 +490,18 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     color: Colors.grey[200],
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: TextField(
-                    controller: logoutReasonController,
-                    readOnly: isLogoutReasonSubmitted, // ✅ Non-editable after submit
-                     maxLines: null,
-                     expands: true,
-                      textAlignVertical: TextAlignVertical.top,
-                    decoration: const InputDecoration(
-                      labelText: "Reason for Early/Late Logout 👋",
-                      border: OutlineInputBorder(),
-                    ),
+                  child: IgnorePointer(
+                    child: TextField(
+                      controller: logoutReasonController,
+                        readOnly: true,
+                        maxLines: null,
+                         expands: true,
+                         textAlignVertical: TextAlignVertical.top,
+                      decoration: const InputDecoration(
+                         labelText: "Reason for Early/Late Logout 👋",
+                         border: OutlineInputBorder(),
+                       ),
+                   ),
                   ),
                 ),
               ],
