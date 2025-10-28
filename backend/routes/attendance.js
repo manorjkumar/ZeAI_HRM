@@ -9,7 +9,7 @@ function formatDateToDDMMYYYY(dateInput) {
     const day = String(today.getDate()).padStart(2, "0");
     const month = String(today.getMonth() + 1).padStart(2, "0");
     const year = today.getFullYear();
-    return '${day}-${month}-${year}';
+    return `${day}-${month}-${year}`;
   }
 
   if (typeof dateInput === "string" && /^\d{2}-\d{2}-\d{4}$/.test(dateInput)) {
@@ -20,7 +20,7 @@ function formatDateToDDMMYYYY(dateInput) {
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
-  return '${day}-${month}-${year}';
+  return `${day}-${month}-${year}`;
 }
 
 // ✅ POST: Save attendance (Login)
