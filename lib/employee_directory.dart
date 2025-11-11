@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'sidebar.dart';
 import 'package:http/http.dart' as http;
-import 'package:provider/provider.dart'; // ✅ Added for UserProvider
-import 'user_provider.dart'; // ✅ Added for current user ID
+import 'package:provider/provider.dart';
+import 'user_provider.dart';
 import 'message.dart';
-import 'audio_call_page.dart'; // ✅ Added for Audio/Video Call Navigation
+import 'audio_call_page.dart';
 
 class EmployeeDirectoryPage extends StatefulWidget {
   const EmployeeDirectoryPage({super.key});
@@ -16,7 +16,6 @@ class EmployeeDirectoryPage extends StatefulWidget {
 
 class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   List<dynamic> employees = [];
-  List<dynamic> filteredEmployees = [];
   bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 
@@ -55,7 +54,27 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            _searchBox('Search by ID, Name, Position, or Domain...'),
+            // 🔹 Search + Refresh button row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: _searchBox('Search by ID, Name, Position, or Domain...')),
+                const SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: fetchEmployees, // 🔄 Refresh
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white24,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  child: const Text(
+                    "EmployeeList",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 20),
             Expanded(
               child: _isLoading
@@ -227,7 +246,7 @@ class _EmployeeGridState extends State<_EmployeeGrid> {
             ),
             const Spacer(),
 
-            // ✅ Updated Button Row (Audio + Video call integration)
+            // ✅ Audio + Video Call Integration
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
@@ -243,8 +262,7 @@ class _EmployeeGridState extends State<_EmployeeGrid> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) =>
-                            MsgPage(employeeId: employeeId),
+                        builder: (context) => MsgPage(employeeId: employeeId),
                       ),
                     );
                   },
