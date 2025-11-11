@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 typedef IncomingCallCallback = void Function(String fromId, Map signal);
 typedef RemoteStreamCallback = void Function(MediaStream stream);
@@ -177,9 +179,20 @@ class CallManager {
     required bool isVideo,
   }) async {
     _localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': true,
-      'video': isVideo,
-    });
+  'audio': {
+    'echoCancellation': true,
+    'noiseSuppression': true,
+    'autoGainControl': true,
+  },
+  'video': isVideo ? {'facingMode': 'user'} : false,
+});
+
+if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+  await Helper.setSpeakerphoneOn(true);
+}
+
+debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
+
     onLocalStream?.call(_localStream!);
 
     _pc = await _createPeerConnection(isVideo, targetId);
@@ -217,9 +230,20 @@ class CallManager {
     final isVideo = signal['isVideo'] == true;
 
     _localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': true,
-      'video': isVideo,
-    });
+  'audio': {
+    'echoCancellation': true,
+    'noiseSuppression': true,
+    'autoGainControl': true,
+  },
+  'video': isVideo ? {'facingMode': 'user'} : false,
+});
+
+if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+  await Helper.setSpeakerphoneOn(true);
+}
+
+debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
+
 
     onLocalStream?.call(_localStream!);
 
