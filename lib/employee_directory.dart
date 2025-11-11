@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'sidebar.dart';
 import 'package:http/http.dart' as http;
-// import 'email_page.dart';
+import 'package:provider/provider.dart'; // ✅ Added for UserProvider
+import 'user_provider.dart'; // ✅ Added for current user ID
 import 'message.dart';
+import 'audio_call_page.dart'; // ✅ Added for Audio/Video Call Navigation
 
 class EmployeeDirectoryPage extends StatefulWidget {
   const EmployeeDirectoryPage({super.key});
@@ -15,7 +17,7 @@ class EmployeeDirectoryPage extends StatefulWidget {
 class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   List<dynamic> employees = [];
   List<dynamic> filteredEmployees = [];
-  bool _isLoading = true; // This will now only control the initial load
+  bool _isLoading = true;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -33,7 +35,6 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
       if (response.statusCode == 200) {
         setState(() {
           employees = jsonDecode(response.body);
-          // The grid will handle its own filtering state
           _isLoading = false;
         });
       } else {
@@ -54,16 +55,11 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Search Box
             _searchBox('Search by ID, Name, Position, or Domain...'),
             const SizedBox(height: 20),
-
-            // ✅ Loader or Grid
             Expanded(
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(),
-                    ) // Initial load
+                  ? const Center(child: CircularProgressIndicator())
                   : _EmployeeGrid(
                       allEmployees: employees,
                       searchController: _searchController,
@@ -75,7 +71,6 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     );
   }
 
-  // ✅ Search Box
   Widget _searchBox(String hint) {
     return SizedBox(
       child: TextField(
@@ -97,7 +92,6 @@ class EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   }
 }
 
-/// A stateful widget to display and filter the employee grid, preventing focus issues.
 class _EmployeeGrid extends StatefulWidget {
   final List<dynamic> allEmployees;
   final TextEditingController searchController;
@@ -125,7 +119,7 @@ class _EmployeeGridState extends State<_EmployeeGrid> {
   void didUpdateWidget(covariant _EmployeeGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.allEmployees != oldWidget.allEmployees) {
-      _filterEmployees(); // Re-filter if the source list changes
+      _filterEmployees();
     }
   }
 
@@ -232,41 +226,68 @@ class _EmployeeGridState extends State<_EmployeeGrid> {
               textAlign: TextAlign.center,
             ),
             const Spacer(),
+
+            // ✅ Updated Button Row (Audio + Video call integration)
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 IconButton(
-                  icon: Icon(
-                    Icons.email,
-                    size: 25,
-                    color: Colors.deepPurple.withOpacity(0.5),
-                  ),
+                  icon: Icon(Icons.email,
+                      size: 25, color: Colors.deepPurple.withOpacity(0.5)),
                   onPressed: null,
                 ),
                 IconButton(
-                  icon: const Icon(
-                    Icons.message,
-                    size: 25,
-                    color: Colors.deepPurple,
-                  ),
+                  icon: const Icon(Icons.message,
+                      size: 25, color: Colors.deepPurple),
                   onPressed: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => MsgPage(employeeId: employeeId),
+                        builder: (context) =>
+                            MsgPage(employeeId: employeeId),
                       ),
                     );
                   },
                 ),
-                Icon(
-                  Icons.phone,
-                  size: 25,
-                  color: Colors.deepPurple.withOpacity(0.5),
+                IconButton(
+                  icon: const Icon(Icons.phone,
+                      size: 25, color: Colors.deepPurple),
+                  onPressed: () {
+                    final currentUserId =
+                        Provider.of<UserProvider>(context, listen: false)
+                            .employeeId!;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AudioCallPage(
+                          currentUserId: currentUserId,
+                          targetUserId: employeeId,
+                          isCaller: true,
+                          isVideo: false,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-                Icon(
-                  Icons.video_call,
-                  size: 25,
-                  color: Colors.deepPurple.withOpacity(0.5),
+                IconButton(
+                  icon: const Icon(Icons.video_call,
+                      size: 25, color: Colors.deepPurple),
+                  onPressed: () {
+                    final currentUserId =
+                        Provider.of<UserProvider>(context, listen: false)
+                            .employeeId!;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AudioCallPage(
+                          currentUserId: currentUserId,
+                          targetUserId: employeeId,
+                          isCaller: true,
+                          isVideo: true,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

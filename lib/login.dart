@@ -9,6 +9,7 @@ import 'package:zeai_project/employee_dashboard.dart' as employee;
 import 'package:zeai_project/superadmin_dashboard.dart' as superadmin;
 
 import 'user_provider.dart';
+import 'call_listener.dart';
 
 class LoginApp extends StatelessWidget {
   const LoginApp({super.key});
@@ -107,21 +108,30 @@ class _LoginPageState extends State<LoginPage> {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => const admin.AdminDashboard(),
+                builder: (context) => CallListener(
+        currentUserId: employeeIdController.text.trim(),
+        child: const admin.AdminDashboard(),
+      ),
               ),
             );
           } else if (position == "Founder" || position == "HR") {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => const superadmin.SuperAdminDashboard(),
+                builder: (context) => CallListener(
+        currentUserId: employeeIdController.text.trim(),
+        child: const superadmin.SuperAdminDashboard(),
+      ),
               ),
             );
           } else {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => const employee.EmployeeDashboard(),
+                builder: (context) => CallListener(
+        currentUserId: employeeIdController.text.trim(),
+        child: const employee.EmployeeDashboard(),
+      ),
               ),
             );
           }
