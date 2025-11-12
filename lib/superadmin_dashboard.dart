@@ -11,6 +11,7 @@ import 'dart:io' show File; // Only used on mobile
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:http_parser/http_parser.dart';
+import 'package:intl/intl.dart';
 
 import 'user_provider.dart';
 import 'sidebar.dart';
@@ -25,6 +26,7 @@ import 'leave_approval.dart';
 //import 'adminperformance.dart'; // for Performance Review
 import 'superadmin_performance.dart'; // ✅ for SuperadminPerformancePageReview
 import 'employee_list.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SuperAdminDashboard extends StatefulWidget {
   const SuperAdminDashboard({super.key});
@@ -618,22 +620,17 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
     });
   }
 
+ 
   /// Helper: format date in YYYY-MM-DD hh:mm with zero padding
-  String _formatDate(dynamic iso) {
-    if (iso == null) return 'N/A';
-    try {
-      final dt = DateTime.tryParse(iso.toString());
-      if (dt == null) return iso.toString();
-      String y = dt.year.toString();
-      String m = dt.month.toString().padLeft(2, '0');
-      String d = dt.day.toString().padLeft(2, '0');
-      String hh = dt.hour.toString().padLeft(2, '0');
-      String mm = dt.minute.toString().padLeft(2, '0');
-      return "$y-$m-$d $hh:$mm";
-    } catch (_) {
-      return iso.toString();
-    }
+String _formatDate(dynamic iso) {
+  if (iso == null) return 'N/A';
+  try {
+    final dt = DateTime.parse(iso.toString()).toLocal();
+    return DateFormat('yyyy-MM-dd hh:mm a').format(dt); // 2025-10-03 12:09 PM
+  } catch (_) {
+    return iso.toString();
   }
+}
 
   /// 🔹 Fetch pending change requests
   Future<List<dynamic>> _fetchPendingRequests() async {
@@ -846,11 +843,13 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
         : "employee";
 
     return Center(
-      child: Wrap(
+      child: Wrap(  
         spacing: 90,
         runSpacing: 20,
         alignment: WrapAlignment.center,
         children: [
+
+           
           _quickActionButton('Apply Leave', () {
             Navigator.push(
               context,
@@ -900,12 +899,18 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
           }),
           _quickActionButton('Employee Feedback', _showEmployeeComments),
           _quickActionButton('Request', _showChangeRequests),
-          _quickActionButton('Company Events', () {
+          _quickActionButton('Company Events', () async {
+            final prefs = await SharedPreferences.getInstance();
+            final position = prefs.getString('position') ?? '';
+
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const CompanyEventsScreen()),
+              MaterialPageRoute(
+                builder: (_) => CompanyEventsScreen(isHR: position == 'HR'),
+              ),
             );
           }),
+
           _quickActionButton('Add Employee', _showAddEmployeeDialog),
           _quickActionButton('Employee List', () {
             Navigator.push(
@@ -963,6 +968,8 @@ class _SuperAdminDashboardState extends State<SuperAdminDashboard> {
       ),
     );
   }
+
+  
 
   Widget _quickActionButton(String title, VoidCallback onPressed) {
     return ElevatedButton(

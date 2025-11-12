@@ -1,4 +1,3 @@
-// lib/call_manager.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
@@ -6,8 +5,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 typedef IncomingCallCallback = void Function(String fromId, Map signal);
-typedef RemoteStreamCallback = void Function(MediaStream stream);
-typedef LocalStreamCallback = void Function(MediaStream stream);
+typedef RemoteStreamCallback = void Function(MediaStream? stream);
+typedef LocalStreamCallback = void Function(MediaStream? stream);
 
 class CallManager {
   late IO.Socket socket;
@@ -24,7 +23,7 @@ class CallManager {
   VoidCallback? onCallEnded;
 
   String? _currentTarget;
-  String? currentRoomId; // ✅ For group calls
+  String? currentRoomId;
 
   CallManager({
     required this.serverUrl,
@@ -103,41 +102,76 @@ class CallManager {
     });
   }
 
-  /// ✅ Create Peer Connection
+  // ✅ Create Peer Connection
   Future<RTCPeerConnection> _createPeerConnection(
     bool isVideo,
     String targetId,
   ) async {
     final configuration = <String, dynamic>{
       'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'}
-      ]
+        {'urls': 'stun:stun.l.google.com:19302'},
+        {'urls': 'stun:stun1.l.google.com:19302'},
+        // ✅ optional TURN servers for production reliability:
+        // {'urls': 'turn:turn.yourserver.com:3478', 'username': 'user', 'credential': 'pass'},
+      ],
     };
 
     final pc = await createPeerConnection(configuration);
 
-    // Handle ICE candidates
-    pc.onIceCandidate = (RTCIceCandidate c) {
-      if (c.candidate != null) {
-        socket.emit('ice-candidate', {
-          'to': targetId,
-          'candidate': {
-            'candidate': c.candidate,
-            'sdpMid': c.sdpMid,
-            'sdpMLineIndex': c.sdpMLineIndex,
-          }
-        });
+    // ✅ Connection State Logs
+    pc.onConnectionState = (RTCPeerConnectionState state) {
+      debugPrint('🔗 PeerConnection state: $state');
+    };
+    pc.onIceConnectionState = (RTCIceConnectionState state) {
+      debugPrint('🧭 ICE connection state: $state');
+    };
+    pc.onSignalingState = (RTCSignalingState state) {
+      debugPrint('📡 Signaling state: $state');
+    };
+
+    pc.onIceCandidate = (RTCIceCandidate candidate) {
+  if (candidate.candidate != null) {
+    socket.emit("ice-candidate", {
+      "to": targetId,
+      "from": currentUserId, // <--- include origin
+      "candidate": {
+        "candidate": candidate.candidate,
+        "sdpMid": candidate.sdpMid,
+        "sdpMLineIndex": candidate.sdpMLineIndex,
+      },
+    });
+  }
+};
+
+
+    // Remote Track Handler
+    pc.onTrack = (RTCTrackEvent event) async {
+      try {
+        debugPrint(
+          '🎥 onTrack: kind=${event.track.kind}, id=${event.track.id}, streams=${event.streams.length}'
+        );
+
+        MediaStream? streamToUse;
+
+        if (event.streams.isNotEmpty) {
+          streamToUse = event.streams.first;
+        } else {
+          debugPrint('ℹ onTrack: streams empty — creating MediaStream from track');
+          streamToUse = await createLocalMediaStream("remoteStream");
+          streamToUse.addTrack(event.track);
+        }
+
+        for (final t in streamToUse.getAudioTracks()) {
+          debugPrint('🎚 remote audio track ${t.id} enabled=${t.enabled}');
+          t.enabled = true;
+        }
+        onRemoteStream?.call(streamToUse);
+      
+      } catch (e) {
+        debugPrint('⚠ onTrack error: $e');
       }
     };
 
-    // Handle remote tracks
-    pc.onTrack = (RTCTrackEvent event) {
-      if (event.streams.isNotEmpty) {
-        final stream = event.streams.first;
-        debugPrint('🎥 Remote track added (${event.track.kind})');
-        onRemoteStream?.call(stream);
-      }
-    };
 
     return pc;
   }
@@ -153,7 +187,7 @@ class CallManager {
     debugPrint("🏠 Room created: $currentRoomId by $currentUserId");
   }
 
-  /// ✅ Invite another participant into an existing room
+  /// ✅ Invite another participant
   void inviteParticipant({
     required String targetId,
     required String? roomId,
@@ -178,22 +212,22 @@ class CallManager {
     required String targetId,
     required bool isVideo,
   }) async {
+    _currentTarget = targetId;
     _localStream = await navigator.mediaDevices.getUserMedia({
-  'audio': {
-    'echoCancellation': true,
-    'noiseSuppression': true,
-    'autoGainControl': true,
-  },
-  'video': isVideo ? {'facingMode': 'user'} : false,
-});
+      'audio': {
+        'echoCancellation': true,
+        'noiseSuppression': true,
+        'autoGainControl': true,
+      },
+      'video': isVideo ? {'facingMode': 'user'} : false,
+    });
 
-if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-  await Helper.setSpeakerphoneOn(true);
-}
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      await Helper.setSpeakerphoneOn(true);
+    }
 
-debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
-
-    onLocalStream?.call(_localStream!);
+    debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
+    onLocalStream?.call(_localStream);
 
     _pc = await _createPeerConnection(isVideo, targetId);
 
@@ -203,7 +237,7 @@ debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
       }
     }
 
-    // ✅ Create room for group call
+    // ✅ Create room
     createRoom(targetId);
 
     final offer = await _pc!.createOffer();
@@ -230,22 +264,19 @@ debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
     final isVideo = signal['isVideo'] == true;
 
     _localStream = await navigator.mediaDevices.getUserMedia({
-  'audio': {
-    'echoCancellation': true,
-    'noiseSuppression': true,
-    'autoGainControl': true,
-  },
-  'video': isVideo ? {'facingMode': 'user'} : false,
-});
+      'audio': {
+        'echoCancellation': true,
+        'noiseSuppression': true,
+        'autoGainControl': true,
+      },
+      'video': isVideo ? {'facingMode': 'user'} : false,
+    });
 
-if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-  await Helper.setSpeakerphoneOn(true);
-}
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      await Helper.setSpeakerphoneOn(true);
+    }
 
-debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
-
-
-    onLocalStream?.call(_localStream!);
+    onLocalStream?.call(_localStream);
 
     _pc = await _createPeerConnection(isVideo, fromId);
 
@@ -255,7 +286,7 @@ debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
       }
     }
 
-    // ✅ Save room ID if provided
+    // ✅ Use existing room ID if sent
     if (signal['roomId'] != null) {
       currentRoomId = signal['roomId'];
       debugPrint("📦 Joined existing room: $currentRoomId");
@@ -295,7 +326,7 @@ debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
     _cleanupPeer();
   }
 
-  /// ✅ Reject incoming call
+  /// ✅ Reject call
   void rejectCall(String toId) {
     try {
       socket.emit('reject-call', {'to': toId, 'from': currentUserId});
@@ -306,7 +337,7 @@ debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
     _cleanupPeer();
   }
 
-  /// ✅ Cleanup peer connection and streams
+  /// ✅ Cleanup
   void _cleanupPeer() {
     try {
       _pc?.close();
