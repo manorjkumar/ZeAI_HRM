@@ -7,9 +7,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zeai_project/admin_dashboard.dart' as admin;
 import 'package:zeai_project/employee_dashboard.dart' as employee;
 import 'package:zeai_project/superadmin_dashboard.dart' as superadmin;
+import 'services/socket_service.dart';
 
 import 'user_provider.dart';
-import 'call_listener.dart';
 
 class LoginApp extends StatelessWidget {
   const LoginApp({super.key});
@@ -103,35 +103,31 @@ class _LoginPageState extends State<LoginPage> {
           userProvider.setEmployeeName(employeeNameController.text.trim());
           userProvider.setPosition(positionController.text.trim());
 
+              // ✅ Initialize Socket after successful login
+          final userId = userProvider.employeeId;
+          SocketService().init('https://zeai-hrm-1.onrender.com', userId ?? '');
+
+
           // ✅ Navigate after provider is updated
           if (position == "TL") {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => CallListener(
-        currentUserId: employeeIdController.text.trim(),
-        child: const admin.AdminDashboard(),
-      ),
+                builder: (context) => const admin.AdminDashboard(),
               ),
             );
           } else if (position == "Founder" || position == "HR") {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => CallListener(
-        currentUserId: employeeIdController.text.trim(),
-        child: const superadmin.SuperAdminDashboard(),
-      ),
+                builder: (context) => const superadmin.SuperAdminDashboard(),
               ),
             );
           } else {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => CallListener(
-        currentUserId: employeeIdController.text.trim(),
-        child: const employee.EmployeeDashboard(),
-      ),
+                builder: (context) => const employee.EmployeeDashboard(),
               ),
             );
           }
