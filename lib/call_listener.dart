@@ -1,4 +1,3 @@
-// lib/call_listener.dart
 import 'package:flutter/material.dart';
 import 'call_manager.dart';
 import 'call_popup.dart';
@@ -24,56 +23,23 @@ class _CallListenerState extends State<CallListener> {
   @override
   void initState() {
     super.initState();
-
     _callManager = CallManager(
       serverUrl: 'https://zeai-hrm-1.onrender.com',
       currentUserId: widget.currentUserId,
     );
-
-    // 📞 Handle incoming call
-    _callManager.onIncomingCall = (fromId, signal) {
-      final isVideo =
-          signal['isVideo'] == true || signal['isVideo']?.toString() == 'true';
-      _showIncoming(fromId, isVideo, signal);
-    };
-
-    // 📴 Handle call end
-    _callManager.onCallEnded = () {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.popUntil(context, (route) => route.isFirst);
-      }
-    };
-
-    // ⚡ Initialize socket & listeners
+    _callManager.onIncomingCall = _showIncoming;
     _callManager.init();
-
-    // 🧩 Ensure "call-ended" event from server also cleans up UI
-    _callManager.socket.on('call-ended', (data) {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.popUntil(context, (route) => route.isFirst);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('📞 Caller ended the call')),
-        );
-      }
-    });
   }
 
-  /// 🔔 Display the incoming call popup
-  void _showIncoming(String fromId, bool isVideo, Map signal) {
-    if (!mounted) return;
-
+  void _showIncoming(String fromId, Map signal) {
+    final isVideo = signal['isVideo'] == true;
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => IncomingCallPopup(
+      builder: (_) => IncomingCallPopup(
         callerId: fromId,
         isVideo: isVideo,
-        onReject: () {
-          _callManager.rejectCall(fromId);
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        },
         onAccept: () {
-          Navigator.pop(context); // close popup
+          Navigator.pop(context);
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -86,6 +52,10 @@ class _CallListenerState extends State<CallListener> {
               ),
             ),
           );
+        },
+        onReject: () {
+          Navigator.pop(context);
+          _callManager.rejectCall(fromId);
         },
       ),
     );

@@ -1,4 +1,3 @@
-// lib/call_popup.dart
 import 'package:flutter/material.dart';
 
 class IncomingCallPopup extends StatelessWidget {
@@ -18,23 +17,24 @@ class IncomingCallPopup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Incoming Call'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(isVideo ? Icons.videocam : Icons.call, size: 48, color: Colors.deepPurple),
-          const SizedBox(height: 12),
-          Text('$callerId is calling'),
-        ],
+      backgroundColor: Colors.black87,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Text(
+        "Incoming ${isVideo ? 'Video' : 'Audio'} Call",
+        style: const TextStyle(color: Colors.white),
+      ),
+      content: Text(
+        "From: $callerId",
+        style: const TextStyle(color: Colors.white70),
       ),
       actions: [
-        TextButton(
+        IconButton(
+          icon: const Icon(Icons.call_end, color: Colors.red, size: 35),
           onPressed: onReject,
-          child: const Text('Reject', style: TextStyle(color: Colors.red)),
         ),
-        ElevatedButton(
+        IconButton(
+          icon: const Icon(Icons.call, color: Colors.green, size: 35),
           onPressed: onAccept,
-          child: const Text('Accept'),
         ),
       ],
     );

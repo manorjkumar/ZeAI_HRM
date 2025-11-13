@@ -1,363 +1,154 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 
-typedef IncomingCallCallback = void Function(String fromId, Map signal);
-typedef RemoteStreamCallback = void Function(MediaStream? stream);
-typedef LocalStreamCallback = void Function(MediaStream? stream);
+typedef IncomingCallHandler = void Function(String fromId, Map signal);
+typedef CallEndedHandler = void Function();
 
 class CallManager {
-  late IO.Socket socket;
-  RTCPeerConnection? _pc;
-  MediaStream? _localStream;
-  MediaStream? get localStream => _localStream;
-
   final String serverUrl;
   final String currentUserId;
+  late IO.Socket socket;
 
-  IncomingCallCallback? onIncomingCall;
-  RemoteStreamCallback? onRemoteStream;
-  LocalStreamCallback? onLocalStream;
-  VoidCallback? onCallEnded;
+  RTCPeerConnection? _peerConnection;
+  MediaStream? _localStream;
+  MediaStream? get localStream => _localStream;
+  MediaStream? _remoteStream;
 
-  String? _currentTarget;
-  String? currentRoomId;
+  Function(MediaStream stream)? onLocalStream;
+  Function(MediaStream stream)? onRemoteStream;
 
-  CallManager({
-    required this.serverUrl,
-    required this.currentUserId,
-  });
+  IncomingCallHandler? onIncomingCall;
+  CallEndedHandler? onCallEnded;
 
-  // ✅ Initialize socket connection
-  Future<void> init() async {
+  CallManager({required this.serverUrl, required this.currentUserId});
+
+  void init() {
     socket = IO.io(serverUrl, <String, dynamic>{
       'transports': ['websocket'],
       'autoConnect': true,
-      'forceNew': true,
+      'forceNew': false,
     });
 
+    socket.connect();
     socket.onConnect((_) {
-      socket.emit('join', currentUserId);
-      debugPrint('✅ Connected to socket as $currentUserId');
+      socket.emit('register', currentUserId);
+      print('✅ Connected to signaling server as $currentUserId');
     });
 
-    // ✅ Incoming call
-    socket.on('incoming-call', (data) {
-      try {
-        final from = data['from'] as String;
-        final signal = Map<String, dynamic>.from(data['signal'] ?? {});
-        onIncomingCall?.call(from, signal);
-      } catch (e) {
-        debugPrint('⚠ incoming-call parse error: $e');
-      }
+    socket.on('offer', (data) => onIncomingCall?.call(data['from'], data));
+    socket.on('answer', (data) async {
+      final desc = RTCSessionDescription(data['sdp'], data['type']);
+      await _peerConnection?.setRemoteDescription(desc);
     });
 
-    // ✅ Call accepted
-    socket.on('call-accepted', (data) async {
-      try {
-        final signal = Map<String, dynamic>.from(data as Map);
-        final sdp = signal['sdp'] as String?;
-        final type = signal['type'] as String?;
-        if (sdp != null && type != null && _pc != null) {
-          await _pc!.setRemoteDescription(RTCSessionDescription(sdp, type));
-        }
-      } catch (e) {
-        debugPrint('⚠ call-accepted error: $e');
-      }
+    socket.on('candidate', (data) async {
+      final candidate = RTCIceCandidate(
+        data['candidate'],
+        data['sdpMid'],
+        data['sdpMLineIndex'],
+      );
+      await _peerConnection?.addCandidate(candidate);
     });
 
-    // ✅ Call rejected
-    socket.on('call-rejected', (data) {
-      debugPrint('ℹ Received call-rejected: $data');
-      onCallEnded?.call();
-      _cleanupPeer();
-    });
-
-    // ✅ Call ended remotely
-    socket.on('call-ended', (data) {
-      debugPrint('ℹ Received call-ended: $data');
-      onCallEnded?.call();
-      _cleanupPeer();
-    });
-
-    // ✅ ICE candidates
-    socket.on('ice-candidate', (data) async {
-      try {
-        final cand = Map<String, dynamic>.from(data['candidate'] ?? {});
-        final candidate = RTCIceCandidate(
-          cand['candidate'] as String?,
-          cand['sdpMid'] as String?,
-          cand['sdpMLineIndex'] as int?,
-        );
-        if (_pc != null) await _pc!.addCandidate(candidate);
-      } catch (e) {
-        debugPrint('⚠ ice-candidate parse error: $e');
-      }
-    });
-
-    socket.onDisconnect((_) {
-      debugPrint('⚠ Socket disconnected');
-    });
+    socket.on('call-ended', (_) => onCallEnded?.call());
   }
 
-  // ✅ Create Peer Connection
-  Future<RTCPeerConnection> _createPeerConnection(
-    bool isVideo,
-    String targetId,
-  ) async {
-    final configuration = <String, dynamic>{
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-        {'urls': 'stun:stun1.l.google.com:19302'},
-        // ✅ optional TURN servers for production reliability:
-        // {'urls': 'turn:turn.yourserver.com:3478', 'username': 'user', 'credential': 'pass'},
-      ],
-    };
+  Future<void> startCall(String targetId, bool isVideo) async {
+    await _createPeerConnection(isVideo);
+    _localStream = await _getUserMedia(isVideo);
+    onLocalStream?.call(_localStream!);
 
-    final pc = await createPeerConnection(configuration);
+    _localStream!.getTracks().forEach((t) => _peerConnection!.addTrack(t, _localStream!));
 
-    // ✅ Connection State Logs
-    pc.onConnectionState = (RTCPeerConnectionState state) {
-      debugPrint('🔗 PeerConnection state: $state');
-    };
-    pc.onIceConnectionState = (RTCIceConnectionState state) {
-      debugPrint('🧭 ICE connection state: $state');
-    };
-    pc.onSignalingState = (RTCSignalingState state) {
-      debugPrint('📡 Signaling state: $state');
-    };
+    final offer = await _peerConnection!.createOffer();
+    await _peerConnection!.setLocalDescription(offer);
 
-    pc.onIceCandidate = (RTCIceCandidate candidate) {
-  if (candidate.candidate != null) {
-    socket.emit("ice-candidate", {
-      "to": targetId,
-      "from": currentUserId, // <--- include origin
-      "candidate": {
-        "candidate": candidate.candidate,
-        "sdpMid": candidate.sdpMid,
-        "sdpMLineIndex": candidate.sdpMLineIndex,
-      },
-    });
-  }
-};
-
-
-    // Remote Track Handler
-    pc.onTrack = (RTCTrackEvent event) async {
-      try {
-        debugPrint(
-          '🎥 onTrack: kind=${event.track.kind}, id=${event.track.id}, streams=${event.streams.length}'
-        );
-
-        MediaStream? streamToUse;
-
-        if (event.streams.isNotEmpty) {
-          streamToUse = event.streams.first;
-        } else {
-          debugPrint('ℹ onTrack: streams empty — creating MediaStream from track');
-          streamToUse = await createLocalMediaStream("remoteStream");
-          streamToUse.addTrack(event.track);
-        }
-
-        for (final t in streamToUse.getAudioTracks()) {
-          debugPrint('🎚 remote audio track ${t.id} enabled=${t.enabled}');
-          t.enabled = true;
-        }
-        onRemoteStream?.call(streamToUse);
-      
-      } catch (e) {
-        debugPrint('⚠ onTrack error: $e');
-      }
-    };
-
-
-    return pc;
-  }
-
-  /// ✅ Create room (for group call)
-  void createRoom(String targetId) {
-    currentRoomId = "room_${DateTime.now().millisecondsSinceEpoch}";
-    socket.emit("create-room", {
-      'roomId': currentRoomId,
-      'creator': currentUserId,
-      'target': targetId,
-    });
-    debugPrint("🏠 Room created: $currentRoomId by $currentUserId");
-  }
-
-  /// ✅ Invite another participant
-  void inviteParticipant({
-    required String targetId,
-    required String? roomId,
-    required bool isVideo,
-  }) {
-    if (roomId == null) {
-      debugPrint("⚠ No active room to invite into");
-      return;
-    }
-
-    socket.emit("add-participant", {
-      'roomId': roomId,
+    socket.emit('offer', {
       'from': currentUserId,
-      'target': targetId,
+      'to': targetId,
+      'sdp': offer.sdp,
+      'type': offer.type,
       'isVideo': isVideo,
     });
-    debugPrint("👥 Invited $targetId to room $roomId");
   }
 
-  /// ✅ Start a call (caller)
-  Future<void> startCall({
-    required String targetId,
-    required bool isVideo,
-  }) async {
-    _currentTarget = targetId;
-    _localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': {
-        'echoCancellation': true,
-        'noiseSuppression': true,
-        'autoGainControl': true,
-      },
-      'video': isVideo ? {'facingMode': 'user'} : false,
-    });
+  Future<void> answerCall(Map offer) async {
+    final isVideo = offer['isVideo'] == true || offer['isVideo']?.toString() == 'true';
+    await _createPeerConnection(isVideo);
 
-    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-      await Helper.setSpeakerphoneOn(true);
-    }
+    _localStream = await _getUserMedia(isVideo);
+    onLocalStream?.call(_localStream!);
+    _localStream!.getTracks().forEach((t) => _peerConnection!.addTrack(t, _localStream!));
 
-    debugPrint('🔈 Local audio tracks: ${_localStream?.getAudioTracks().length}');
-    onLocalStream?.call(_localStream);
+    final desc = RTCSessionDescription(offer['sdp'], offer['type']);
+    await _peerConnection!.setRemoteDescription(desc);
 
-    _pc = await _createPeerConnection(isVideo, targetId);
+    final answer = await _peerConnection!.createAnswer();
+    await _peerConnection!.setLocalDescription(answer);
 
-    if (_localStream != null) {
-      for (var track in _localStream!.getTracks()) {
-        await _pc!.addTrack(track, _localStream!);
-      }
-    }
-
-    // ✅ Create room
-    createRoom(targetId);
-
-    final offer = await _pc!.createOffer();
-    await _pc!.setLocalDescription(offer);
-
-    socket.emit('call-user', {
-      'target': targetId,
+    socket.emit('answer', {
       'from': currentUserId,
-      'signal': {
-        'sdp': offer.sdp,
-        'type': offer.type,
-        'isVideo': isVideo,
-        'roomId': currentRoomId,
-      }
+      'to': offer['from'],
+      'sdp': answer.sdp,
+      'type': answer.type,
     });
   }
 
-  /// ✅ Answer a call (receiver)
-  Future<void> answerCall({
-    required String fromId,
-    required Map signal,
-  }) async {
-    _currentTarget = fromId;
-    final isVideo = signal['isVideo'] == true;
+  void rejectCall(String fromId) => socket.emit('call-rejected', {'from': currentUserId, 'to': fromId});
+  void endCall(String targetId) {
+    socket.emit('call-ended', {'from': currentUserId, 'to': targetId});
+    _cleanup();
+  }
 
-    _localStream = await navigator.mediaDevices.getUserMedia({
-      'audio': {
-        'echoCancellation': true,
-        'noiseSuppression': true,
-        'autoGainControl': true,
-      },
-      'video': isVideo ? {'facingMode': 'user'} : false,
-    });
+  Future<void> _createPeerConnection(bool isVideo) async {
+    final config = {
+      'iceServers': [
+        {'urls': 'stun:stun.l.google.com:19302'},
+      ],
+    };
+    _peerConnection = await createPeerConnection(config);
 
-    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-      await Helper.setSpeakerphoneOn(true);
-    }
-
-    onLocalStream?.call(_localStream);
-
-    _pc = await _createPeerConnection(isVideo, fromId);
-
-    if (_localStream != null) {
-      for (var track in _localStream!.getTracks()) {
-        await _pc!.addTrack(track, _localStream!);
+    _peerConnection!.onIceCandidate = (candidate) {
+      if (candidate.candidate != null) {
+        socket.emit('candidate', {
+          'to': currentUserId == null ? '' : currentUserId,
+          'candidate': candidate.candidate,
+          'sdpMid': candidate.sdpMid,
+          'sdpMLineIndex': candidate.sdpMLineIndex,
+        });
       }
-    }
+    };
 
-    // ✅ Use existing room ID if sent
-    if (signal['roomId'] != null) {
-      currentRoomId = signal['roomId'];
-      debugPrint("📦 Joined existing room: $currentRoomId");
-    }
+    _peerConnection!.onTrack = (event) {
+      if (event.streams.isNotEmpty) {
+        onRemoteStream?.call(event.streams[0]);
+      }
+    };
+  }
 
-    final remoteSdp = signal['sdp'] as String?;
-    final remoteType = signal['type'] as String?;
-    if (remoteSdp != null && remoteType != null) {
-      await _pc!.setRemoteDescription(
-        RTCSessionDescription(remoteSdp, remoteType),
-      );
-    }
-
-    final answer = await _pc!.createAnswer();
-    await _pc!.setLocalDescription(answer);
-
-    socket.emit('answer-call', {
-      'to': fromId,
-      'signal': {'sdp': answer.sdp, 'type': answer.type},
+  Future<MediaStream> _getUserMedia(bool isVideo) async {
+    return await navigator.mediaDevices.getUserMedia({
+      'audio': true,
+      'video': isVideo
+          ? {
+              'facingMode': 'user',
+              'width': {'ideal': 640},
+              'height': {'ideal': 480},
+            }
+          : false,
     });
   }
 
-  /// ✅ End call
-  void endCall({String? forceTargetId}) {
-    try {
-      final to = forceTargetId ?? _currentTarget;
-      if (to != null && socket.connected) {
-        socket.emit('end-call', {'to': to, 'from': currentUserId});
-        debugPrint('📞 Emitted end-call to $to');
-      } else {
-        debugPrint('⚠ No target for end-call');
-      }
-    } catch (e) {
-      debugPrint('⚠ endCall error: $e');
-    }
-    onCallEnded?.call();
-    _cleanupPeer();
+  void _cleanup() {
+    _localStream?.dispose();
+    _remoteStream?.dispose();
+    _peerConnection?.close();
+    _peerConnection = null;
   }
 
-  /// ✅ Reject call
-  void rejectCall(String toId) {
-    try {
-      socket.emit('reject-call', {'to': toId, 'from': currentUserId});
-    } catch (e) {
-      debugPrint('⚠ rejectCall emit error: $e');
-    }
-    onCallEnded?.call();
-    _cleanupPeer();
-  }
-
-  /// ✅ Cleanup
-  void _cleanupPeer() {
-    try {
-      _pc?.close();
-    } catch (_) {}
-    try {
-      _localStream?.getTracks().forEach((t) => t.stop());
-      _localStream?.dispose();
-    } catch (_) {}
-    _pc = null;
-    _localStream = null;
-    _currentTarget = null;
-    currentRoomId = null;
-  }
-
-  /// ✅ Dispose
   void dispose() {
-    try {
-      socket.dispose();
-    } catch (e) {
-      debugPrint('⚠ Socket dispose error: $e');
-    }
+    _cleanup();
+    socket.dispose();
   }
 }
